@@ -1,0 +1,11 @@
+invoice_id,vendor,amount_inr,po_backed,days_to_approval,exception_flag,paid_on_time
+INV-10023,Global Steel Traders,412000,yes,2,no,yes
+INV-10024,Office Basics Pvt Ltd,18500,no,6,yes,no
+INV-10025,Global Steel Traders,398000,yes,1,no,yes
+INV-10026,Marketing Collective,64000,no,9,yes,no
+INV-10027,Facilities First,22000,no,4,no,yes
+INV-10028,Global Steel Traders,405000,yes,2,no,yes
+INV-10029,Office Basics Pvt Ltd,15200,no,7,yes,no
+INV-10030,IT Hardware Solutions,132000,yes,3,no,yes
+INV-10031,Marketing Collective,58000,no,11,yes,no
+INV-10032,Facilities First,19800,no,5,no,yes

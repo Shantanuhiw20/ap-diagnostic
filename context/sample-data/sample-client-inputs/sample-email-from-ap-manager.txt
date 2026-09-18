@@ -1,0 +1,19 @@
+SAMPLE - fictional, for the workshop only.
+
+From: priya.menon@northwind-example.com
+To: ap-diagnostic-agent
+Subject: Re: a few numbers you asked for
+
+Hi,
+
+Following up from our chat. Pulled these from last month's close:
+
+- We processed 8,412 invoices in August.
+- Around 40% do not have a PO attached, mostly from the facilities and marketing teams who order directly from vendors.
+- Our SAP setup does have OCR turned on for the scanned invoices, but a lot still come in as PDF attachments in email that someone has to key in by hand.
+- On the approval side, anything above 50k INR needs sign-off from both the cost center head and the finance controller. The controller is often traveling, so that step alone can add 3-4 days.
+- I don't have an exact number for discount capture but I know we miss a lot of early payment terms because by the time an invoice clears approval, the discount window is already gone.
+
+Let me know what else you need.
+
+Priya

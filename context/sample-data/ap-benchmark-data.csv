@@ -1,0 +1,11 @@
+field_id,metric,unit,global_benchmark,india_benchmark,commonly_observed,read
+ap_derived,Invoices processed per AP FTE,thousands per annum,44,40,12-25,"Compare only after normalising for non-PO mix. A low figure with high non-PO share is a process problem, not a people problem"
+ap_04,PO-backed invoices,percentage,95,85,70-90,"Below 80% means most spend bypasses the control that makes matching possible, and everything downstream gets manual"
+ap_08,Invoice exception rate,percentage,2,8,10-20,"The strongest single predictor of AP effort. Above 15% the team is running a rework function, not a payment function"
+ap_09,Invoice receipt to posting,days,2,4,3-8,"Raw process speed, independent of payment terms. Anything above 5 days usually points at approval routing, not capacity"
+ap_10,Days Payable Outstanding,days,45,55,40-70,"Read against agreed terms, never on its own. High DPO with low paid-on-time means late payment, not working capital management"
+ap_11,Paid on time against terms,percentage,95,70,20-50,"The headline AP service metric. Below 60% is almost always an approval bottleneck rather than a deliberate cash decision"
+ap_12,Payments made electronically,percentage,98,75,5-40,"Cheque volume carries cost, delay and fraud exposure. Usually the cheapest win available and rarely contested"
+ap_13,Distinct payment terms in use,count,8,20,30-80,"A long tail of terms makes on-time payment unmeasurable, so fix this before trying to improve the paid-on-time number"
+ap_14,Early payment discount capture,percentage,85,45,under 50,"Directly quantifiable missed savings. Low capture alongside slow cycle time is the clearest cost-of-delay argument available"
+ap_17,Vendor queries per 1000 invoices,count,15,40,50-120,"Normalise the monthly query count against invoice volume before comparing. High query load usually tracks late payment, not vendor behaviour"

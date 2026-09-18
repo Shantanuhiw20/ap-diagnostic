@@ -1,0 +1,8 @@
+field_id,category,question,why_it_matters,data_type
+r2r_01,Process,How many business days does your month-end close currently take?,Core R2R health metric,number (days)
+r2r_02,Process,How many manual journal entries are posted in a typical close?,Manual JEs are a common source of error and delay,number
+r2r_03,Technology,Do you use a close-management or reconciliation automation tool today?,Shows current automation maturity,yes/no
+r2r_04,Metric,What percentage of balance sheet accounts are reconciled within 5 days of close?,Direct measure of close discipline,percentage
+r2r_05,Metric,How many audit adjustments were raised in the last annual audit?,Proxy for close quality,number
+r2r_06,Team,How many FTEs support the close process today?,Baseline for capacity conversation,number
+r2r_07,Pain point,"What is the single biggest bottleneck in your close process today, in your own words?","Open-ended, captures tacit knowledge",text

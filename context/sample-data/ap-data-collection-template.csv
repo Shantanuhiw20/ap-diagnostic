@@ -1,0 +1,21 @@
+field_id,category,question,why_it_matters,data_type
+ap_01,Vendor Master,How many active vendors do you have in the ERP today?,"Master data volume drives duplicate payment risk, and a long tail of one-time vendors is a standing finding",number
+ap_02,Vendor Master,"Who can create or amend a vendor master record, and what check sits in front of that?","Vendor creation without segregation of duties is the single most common fraud exposure in AP",text
+ap_03,Invoice Processing,How many vendor invoices does the team process in a typical month?,Sets the scale of the operation and every per-FTE productivity comparison,number
+ap_04,Invoice Processing,What percentage of invoices are PO-backed versus non-PO?,"Non-PO spend is the most cited AP lever, since it is manual, harder to control and slower to approve",percentage
+ap_05,Invoice Processing,"How do invoices reach you: post, email, EDI, a vendor portal, or a mix?","Channel mix determines whether capture can be automated at all, and paper is a hidden cost",text
+ap_06,Invoice Processing,Do you use OCR or automated data capture for invoices today?,Shows current automation maturity and sizes the indexing effort,yes/no
+ap_07,Invoice Processing,"Do you run a three-way match, and what tolerance is set before an invoice needs manual review?","Tolerance settings decide how much genuinely needs a human, and a tight tolerance manufactures exceptions",text
+ap_08,Invoice Processing,What percentage of invoices hit an exception and need manual resolution?,"Direct proxy for rework and hidden cost, and the strongest predictor of AP effort",percentage
+ap_09,Invoice Processing,What is the average time in days from invoice receipt to posting?,"Cycle time, separate from payment terms, and the cleanest measure of raw process speed",number (days)
+ap_10,Payments,What is your average Days Payable Outstanding?,"Core AP health metric, though it is read against terms rather than judged on its own",number (days)
+ap_11,Payments,What percentage of invoices are paid on time against agreed terms?,"Paid-on-time percentage is the headline AP service metric, and low figures signal an approval bottleneck",percentage
+ap_12,Payments,What percentage of payments go out electronically versus by cheque?,"Cheque volume carries cost, delay and fraud exposure, and is usually an easy win",percentage
+ap_13,Payments,Roughly how many different payment terms are in use across your vendor base?,"A long tail of unique terms makes on-time payment almost impossible to manage or measure",number
+ap_14,Payments,What percentage of eligible early-payment discounts do you actually capture?,"Missed discounts are a direct, quantifiable cost of a slow process",percentage
+ap_15,Payments,"How many approval steps does a payment go through, and do thresholds change who approves?","Identifies bottleneck roles, and whether delegation of authority is doing real work",text
+ap_16,Reconciliation,"How large is your GR-IR clearance backlog, and how often is it reviewed?","An ageing GR-IR balance hides unmatched receipts and overstates or understates liabilities",text
+ap_17,Query & Dispute,Roughly how many vendor queries does the team handle in a month?,"Sizes the query-handling sub-process, which is usually invisible in headcount planning",number
+ap_18,Compliance,How do you track MSME vendors and the interest exposure on late payment to them?,Statutory exposure with real financial consequences that is often tracked manually or not at all,text
+ap_19,Team,How many FTEs work in the AP function today?,Baseline for the capacity and automation conversation and for invoices-per-FTE benchmarking,number
+ap_20,Pain point,"What is the single biggest bottleneck in your AP process today, in your own words?",Open-ended and captures the tacit knowledge a form cannot,text
