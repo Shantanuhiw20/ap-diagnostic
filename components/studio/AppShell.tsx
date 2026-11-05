@@ -525,8 +525,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={handleExportExecutivePdf}
-              disabled={exportingPdf}
-              className="inline-flex items-center gap-1.5 rounded-md bg-[#FFE600] px-3 py-1.5 text-xs font-extrabold text-slate-950 shadow-xs transition-opacity hover:opacity-90 disabled:opacity-50"
+              disabled={
+                exportingPdf ||
+                (coreMetrics.answeredCount === 0 && datasets.length === 0)
+              }
+              title={
+                coreMetrics.answeredCount === 0 && datasets.length === 0
+                  ? "Enter interview answers or load SAP extracts before exporting PDF"
+                  : "Export 14-section Executive Report PDF"
+              }
+              className="inline-flex items-center gap-1.5 rounded-md bg-[#FFE600] px-3 py-1.5 text-xs font-extrabold text-slate-950 shadow-xs transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Download className="h-3.5 w-3.5" />
               <span>{exportingPdf ? "Exporting…" : "Export PDF"}</span>

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useStudio } from "@/lib/studio/store";
 import type { RoadmapInitiative, RoadmapWave } from "@/lib/studio/types";
+import { DiagnosticGate } from "../DiagnosticGate";
 
 const WAVES: RoadmapWave[] = [
   "Wave 1 — Stabilize & Standardize",
@@ -36,6 +37,8 @@ const TIMELINE_MONTHS = [
 export function RoadmapScreen() {
   const {
     roadmapInitiatives,
+    coreMetrics,
+    datasets,
     addRoadmapInitiative,
     updateRoadmapInitiative,
     moveInitiativeWave,
@@ -93,6 +96,15 @@ export function RoadmapScreen() {
       strategic,
     };
   }, [roadmapInitiatives]);
+
+  if (coreMetrics.answeredCount === 0 && datasets.length === 0) {
+    return (
+      <DiagnosticGate
+        screenTitle="3-Wave Transformation Roadmap"
+        description="Phased implementation waves and initiative sequencing are generated once diagnostic inputs and transformation opportunities are established. Complete the Diagnostic Interview or load SAP data first."
+      />
+    );
+  }
 
   const handleAddInitiative = (e: React.FormEvent) => {
     e.preventDefault();

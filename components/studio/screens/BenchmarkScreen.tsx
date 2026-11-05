@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useStudio } from "@/lib/studio/store";
 import type { BenchmarkFilterState, KpiId } from "@/lib/studio/types";
+import { DiagnosticGate } from "../DiagnosticGate";
 
 export function BenchmarkScreen() {
   const {
@@ -37,12 +38,22 @@ export function BenchmarkScreen() {
     rootCauses,
     opportunities,
     datasets,
+    coreMetrics,
     updateBenchmarkFilters,
     openKpiDrilldown,
     navigateTo,
   } = useStudio();
 
   const [selectedKpiId, setSelectedKpiId] = useState<KpiId>("po_backed_rate");
+
+  if (coreMetrics.answeredCount === 0 && datasets.length === 0) {
+    return (
+      <DiagnosticGate
+        screenTitle="Peer & Best-in-Class Benchmark Analysis"
+        description="KPI benchmarking requires client operational metrics (volume, FTEs, PO split, exception rate, cycle time, and discount capture). Enter responses in the Diagnostic Interview or load the SAP extracts first."
+      />
+    );
+  }
 
   const activeKpi =
     kpiBenchmarks.find((k) => k.id === selectedKpiId) ?? kpiBenchmarks[0];

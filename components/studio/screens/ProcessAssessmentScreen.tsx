@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useStudio } from "@/lib/studio/store";
 import type { MaturityLevel } from "@/lib/studio/types";
+import { DiagnosticGate } from "../DiagnosticGate";
 
 const MATURITY_LEVEL_META: Record<
   MaturityLevel,
@@ -101,6 +102,15 @@ export function ProcessAssessmentScreen() {
       painPoints: activeStage.painPoints.filter((_, i) => i !== idx),
     });
   };
+
+  if (coreMetrics.answeredCount === 0 && datasets.length === 0) {
+    return (
+      <DiagnosticGate
+        screenTitle="12-Stage Process Assessment"
+        description="End-to-end AP process maturity scoring and control effectiveness are evaluated once you begin the Diagnostic Interview or load the SAP evidence extracts."
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">

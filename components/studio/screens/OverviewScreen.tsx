@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { useStudio } from "@/lib/studio/store";
 import type { KpiId, StudioSectionId } from "@/lib/studio/types";
+import { DiagnosticGate } from "../DiagnosticGate";
 
 const VOLUME_TREND_DATA = [
   { month: "Apr", poBacked: 7200, nonPo: 4400, touchlessPct: 31 },
@@ -154,12 +155,12 @@ export function OverviewScreen() {
   const diagnosticFindings = [
     {
       id: "ins_1",
+      unlocked: isAns("ap_08") || isAns("ap_07"),
       severity: "Critical",
-      title: "Invoice exceptions are 2.25× the peer benchmark",
+      title: `Invoice exceptions (${coreMetrics.exceptionRate}%) are ${(coreMetrics.exceptionRate / 8).toFixed(1)}× the peer benchmark`,
       kpiId: "exception_rate" as KpiId,
       metric: `${coreMetrics.exceptionRate}% vs. 8.0% Peer`,
-      implication:
-        "25,920 invoices/yr require manual rework (~3.0 FTEs), driven by late plant GRNs (44%) and rigid $25 SAP freight tolerances (25%).",
+      implication: `${Math.round(coreMetrics.annualInvoices * (coreMetrics.exceptionRate / 100)).toLocaleString()} invoices/yr require manual rework (~3.0 FTEs), driven by late plant GRNs (44%) and rigid $25 SAP freight tolerances (25%).`,
       action:
         "Recalibrate SAP freight tolerance ($25 → $100 / 2%) & enforce 24-hr dock GRN SLA (OPP-04, OPP-05).",
       impact: "$210k/yr Savings",
@@ -169,12 +170,12 @@ export function OverviewScreen() {
     },
     {
       id: "ins_2",
+      unlocked: isAns("ap_04") || isAns("ap_touchless"),
       severity: "Critical",
-      title: "38% Non-PO invoice volume caps touchless automation",
+      title: `${100 - coreMetrics.poBackedRate}% Non-PO invoice volume caps touchless automation`,
       kpiId: "po_backed_rate" as KpiId,
       metric: `${coreMetrics.poBackedRate}% vs. 85% Peer`,
-      implication:
-        "54,720 indirect invoices/yr bypass 3-way matching and take 9.8 days to code and approve versus 2.4 days for PO-backed invoices.",
+      implication: `${Math.round(coreMetrics.annualInvoices * ((100 - coreMetrics.poBackedRate) / 100)).toLocaleString()} indirect invoices/yr bypass 3-way matching and take 9.8 days to code and approve versus 2.4 days for PO-backed invoices.`,
       action:
         "Publish joint Procurement–Finance No-PO-No-Pay policy & deploy AI/IDP line-level extraction (OPP-02, OPP-04).",
       impact: "$244k/yr Value",
@@ -184,6 +185,7 @@ export function OverviewScreen() {
     },
     {
       id: "ins_3",
+      unlocked: isAns("ap_02_21") || isAns("ap_01"),
       severity: "Critical",
       title: "Vendor master SoD & bank-change controls expose payment risk",
       kpiId: "automation_maturity" as KpiId,
@@ -199,12 +201,12 @@ export function OverviewScreen() {
     },
     {
       id: "ins_4",
+      unlocked: isAns("ap_14") || isAns("ap_09"),
       severity: "High",
       title: "Early-payment discount capture forfeits $173.6k annually",
       kpiId: "discount_capture_rate" as KpiId,
       metric: `${coreMetrics.discountCaptureRate}% vs. 68% Peer`,
-      implication:
-        "62% of eligible 2/10 Net 30 discounts ($14M spend) expire while awaiting sequential plant controller sign-off.",
+      implication: `${100 - coreMetrics.discountCaptureRate}% of eligible 2/10 Net 30 discounts ($14M spend) expire while awaiting sequential plant controller sign-off.`,
       action:
         "Enable 48-hr approval escalation, substitute delegation & 2/10 Net 30 fast-track queue (OPP-06, OPP-10).",
       impact: "$132k/yr Cash",
@@ -214,12 +216,12 @@ export function OverviewScreen() {
     },
     {
       id: "ins_5",
+      unlocked: isAns("ap_17"),
       severity: "Medium",
-      title: "900 monthly vendor inquiries consume 1.5 FTEs of capacity",
+      title: `${coreMetrics.monthlyQueries.toLocaleString()} monthly vendor inquiries consume 1.5 FTEs of capacity`,
       kpiId: "vendor_query_rate" as KpiId,
       metric: `${coreMetrics.vendorQueryRatePer1k}/1k vs. 35 Peer`,
-      implication:
-        "Lack of self-service payment status visibility and 47 unstandardized payment terms drive 10,800 vendor calls/emails per year.",
+      implication: `Lack of self-service payment status visibility and 47 unstandardized payment terms drive ${(coreMetrics.monthlyQueries * 12).toLocaleString()} vendor calls/emails per year.`,
       action:
         "Rationalize 47 payment terms into 6 bands & launch Supplier Self-Service Portal (OPP-07, OPP-11).",
       impact: "$156k/yr + $750k WC",
@@ -227,7 +229,7 @@ export function OverviewScreen() {
       targetSection: "roadmap" as StudioSectionId,
       sectionLabel: "Roadmap",
     },
-  ];
+  ].filter((item) => item.unlocked);
 
   return (
     <div className="space-y-5">
@@ -465,235 +467,268 @@ export function OverviewScreen() {
         })}
       </div>
 
-      {/* 3. UNIFIED 3-CHART OPERATIONAL TELEMETRY STRIP */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-        {/* Chart 1: Monthly Volume Split (5 cols) */}
-        <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-2xs lg:col-span-5">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <div>
-              <h2 className="text-xs font-extrabold tracking-wider text-slate-800 uppercase">
-                Monthly Volume Split (PO vs. Non-PO)
-              </h2>
-              <p className="text-[11px] text-slate-500">
-                38% Non-PO volume (~4,560/mo) caps touchless rate at 34%
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => navigateTo("benchmarks")}
-              className="text-[11px] font-bold text-slate-600 hover:text-slate-950"
-            >
-              Benchmarks →
-            </button>
-          </div>
-          <div className="h-52 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={VOLUME_TREND_DATA}
-                margin={{ top: 6, right: 8, left: -16, bottom: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Bar
-                  dataKey="poBacked"
-                  name="PO-Backed (62%)"
-                  stackId="a"
-                  fill="#0D1B2E"
-                />
-                <Bar
-                  dataKey="nonPo"
-                  name="Non-PO (38%)"
-                  stackId="a"
-                  fill="#EAB308"
-                  radius={[3, 3, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Chart 2: Exception Distribution (3 cols) */}
-        <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-2xs lg:col-span-3">
-          <div>
-            <h2 className="text-xs font-extrabold tracking-wider text-slate-800 uppercase">
-              Exception Drivers (25.9k/yr)
-            </h2>
-            <p className="text-[11px] text-slate-500">
-              Share of manual invoice blocks
-            </p>
-          </div>
-          <div className="h-36 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={EXCEPTION_DISTRIBUTION_DATA}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={34}
-                  outerRadius={56}
-                  paddingAngle={3}
+      {!hasAnyInputs ? (
+        <DiagnosticGate
+          screenTitle="Executive Telemetry & Diagnostic Findings"
+          description="Operational charts and executive diagnostic findings are generated dynamically from your captured interview responses and SAP data extracts. Start the interview or load the SAP extracts to populate this dashboard."
+        />
+      ) : (
+        <>
+          {/* 3. UNIFIED 3-CHART OPERATIONAL TELEMETRY STRIP */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+            {/* Chart 1: Monthly Volume Split (5 cols) */}
+            <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-2xs lg:col-span-5">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-xs font-extrabold tracking-wider text-slate-800 uppercase">
+                    Monthly Volume Split (PO vs. Non-PO)
+                  </h2>
+                  <p className="text-[11px] text-slate-500">
+                    {isAns("ap_04")
+                      ? `${100 - coreMetrics.poBackedRate}% Non-PO volume caps touchless rate at ${coreMetrics.touchlessRate}%`
+                      : "Answer Q3 & Q5 to unlock volume & PO split trend"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigateTo("benchmarks")}
+                  className="text-[11px] font-bold text-slate-600 hover:text-slate-950"
                 >
-                  {EXCEPTION_DISTRIBUTION_DATA.map((entry) => (
-                    <Cell key={entry.name} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(val) => [`${val}%`, "Share"]} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="space-y-1 text-[11px]">
-            {EXCEPTION_DISTRIBUTION_DATA.map((d) => (
-              <div key={d.name} className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-slate-700 truncate">
-                  <span
-                    className="h-2 w-2 shrink-0 rounded-xs"
-                    style={{ backgroundColor: d.color }}
-                  />
-                  <span className="truncate">{d.name}</span>
-                </span>
-                <span className="font-mono font-bold text-slate-900 tabular-nums">
-                  {d.value}%
-                </span>
+                  Benchmarks →
+                </button>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Chart 3: Cycle Time & Payment by Cohort (4 cols) */}
-        <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-2xs lg:col-span-4">
-          <div>
-            <h2 className="text-xs font-extrabold tracking-wider text-slate-800 uppercase">
-              Cycle Time &amp; On-Time Pay by Cohort
-            </h2>
-            <p className="text-[11px] text-slate-500">
-              Non-PO delay (9.8d) drives late payment &amp; missed discounts
-            </p>
-          </div>
-          <div className="h-52 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={CYCLE_PAYMENT_COHORT_DATA}
-                margin={{ top: 6, right: 6, left: -20, bottom: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                <XAxis dataKey="cohort" tick={{ fontSize: 10 }} />
-                <YAxis yAxisId="left" tick={{ fontSize: 10 }} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} />
-                <Tooltip />
-                <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Line
-                  yAxisId="left"
-                  type="monotone"
-                  dataKey="cycleDays"
-                  name="Cycle (Days)"
-                  stroke="#0D1B2E"
-                  strokeWidth={2.2}
-                />
-                <Line
-                  yAxisId="right"
-                  type="monotone"
-                  dataKey="onTimePct"
-                  name="On-Time (%)"
-                  stroke="#0F8B8D"
-                  strokeWidth={2.2}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* 4. CONSOLIDATED EXECUTIVE DIAGNOSTIC FINDINGS & ACTION REGISTER */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
-        <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <ShieldAlert className="h-4 w-4 text-amber-600" />
-            <h2 className="text-sm font-extrabold text-slate-900">
-              Executive Diagnostic Findings &amp; Priority Transformation Levers
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={() => navigateTo("roadmap")}
-            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-800 hover:border-slate-400 hover:bg-slate-100"
-          >
-            <TrendingUp className="h-3.5 w-3.5" />
-            <span>Open 3-Wave Roadmap →</span>
-          </button>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left text-xs">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-[10px] text-slate-500 uppercase">
-                <th className="px-3 py-2.5 font-bold">Diagnostic Finding &amp; Implication</th>
-                <th className="px-3 py-2.5 font-bold">Observed KPI Gap</th>
-                <th className="px-3 py-2.5 font-bold">Recommended Transformation Lever</th>
-                <th className="px-3 py-2.5 font-bold">Annual Impact</th>
-                <th className="px-3 py-2.5 text-right font-bold">Workspace</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {diagnosticFindings.map((item) => (
-                <tr key={item.id} className="hover:bg-slate-50/80">
-                  <td className="max-w-md px-3 py-3 align-top">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`rounded px-1.5 py-0.5 text-[10px] font-extrabold uppercase ${
-                          item.severity === "Critical"
-                            ? "bg-red-100 text-red-800"
-                            : item.severity === "High"
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-slate-200 text-slate-800"
-                        }`}
-                      >
-                        {item.severity}
-                      </span>
-                      <span className="font-bold text-slate-900">{item.title}</span>
-                    </div>
-                    <p className="mt-1 text-[11px] leading-snug text-slate-500">
-                      {item.implication}
-                    </p>
-                  </td>
-                  <td className="px-3 py-3 align-top whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => openKpiDrilldown(item.kpiId)}
-                      className="font-mono text-xs font-bold text-slate-900 underline decoration-[#FFE600] decoration-2 hover:text-slate-700"
+              {isAns("ap_03") || isAns("ap_04") ? (
+                <div className="h-52 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={VOLUME_TREND_DATA}
+                      margin={{ top: 6, right: 8, left: -16, bottom: 0 }}
                     >
-                      {item.metric}
-                    </button>
-                  </td>
-                  <td className="max-w-sm px-3 py-3 align-top text-slate-700">
-                    {item.action}
-                  </td>
-                  <td className="px-3 py-3 align-top whitespace-nowrap">
-                    <span className="block font-mono font-bold text-emerald-700 tabular-nums">
-                      {item.impact}
-                    </span>
-                    <span className="text-[10px] text-slate-400">{item.wave}</span>
-                  </td>
-                  <td className="px-3 py-3 text-right align-top whitespace-nowrap">
-                    <button
-                      type="button"
-                      onClick={() => navigateTo(item.targetSection)}
-                      className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:border-slate-900"
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                      <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Bar
+                        dataKey="poBacked"
+                        name={`PO-Backed (${coreMetrics.poBackedRate}%)`}
+                        stackId="a"
+                        fill="#0D1B2E"
+                      />
+                      <Bar
+                        dataKey="nonPo"
+                        name={`Non-PO (${100 - coreMetrics.poBackedRate}%)`}
+                        stackId="a"
+                        fill="#EAB308"
+                        radius={[3, 3, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="flex h-52 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500">
+                  Answer Q3 (Volume) &amp; Q5 (PO Split) to render chart
+                </div>
+              )}
+            </div>
+
+            {/* Chart 2: Exception Distribution (3 cols) */}
+            <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-2xs lg:col-span-3">
+              <div>
+                <h2 className="text-xs font-extrabold tracking-wider text-slate-800 uppercase">
+                  Exception Drivers ({Math.round((coreMetrics.annualInvoices * (coreMetrics.exceptionRate / 100)) / 1000)}k/yr)
+                </h2>
+                <p className="text-[11px] text-slate-500">
+                  Share of manual invoice blocks
+                </p>
+              </div>
+              {isAns("ap_08") || isAns("ap_07") ? (
+                <>
+                  <div className="h-36 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={EXCEPTION_DISTRIBUTION_DATA}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={34}
+                          outerRadius={56}
+                          paddingAngle={3}
+                        >
+                          {EXCEPTION_DISTRIBUTION_DATA.map((entry) => (
+                            <Cell key={entry.name} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(val) => [`${val}%`, "Share"]} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="space-y-1 text-[11px]">
+                    {EXCEPTION_DISTRIBUTION_DATA.map((d) => (
+                      <div key={d.name} className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5 text-slate-700 truncate">
+                          <span
+                            className="h-2 w-2 shrink-0 rounded-xs"
+                            style={{ backgroundColor: d.color }}
+                          />
+                          <span className="truncate">{d.name}</span>
+                        </span>
+                        <span className="font-mono font-bold text-slate-900 tabular-nums">
+                          {d.value}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="flex h-48 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-center text-xs font-semibold text-slate-500">
+                  Answer Q8 (Exception Rate) to render breakdown
+                </div>
+              )}
+            </div>
+
+            {/* Chart 3: Cycle Time & Payment by Cohort (4 cols) */}
+            <div className="flex flex-col justify-between rounded-xl border border-slate-200 bg-white p-4 shadow-2xs lg:col-span-4">
+              <div>
+                <h2 className="text-xs font-extrabold tracking-wider text-slate-800 uppercase">
+                  Cycle Time &amp; On-Time Pay by Cohort
+                </h2>
+                <p className="text-[11px] text-slate-500">
+                  Non-PO delay (9.8d) drives late payment &amp; missed discounts
+                </p>
+              </div>
+              {isAns("ap_09") || isAns("ap_14") ? (
+                <div className="h-52 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={CYCLE_PAYMENT_COHORT_DATA}
+                      margin={{ top: 6, right: 6, left: -20, bottom: 0 }}
                     >
-                      <span>{item.sectionLabel}</span>
-                      <ArrowUpRight className="h-3 w-3" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                      <XAxis dataKey="cohort" tick={{ fontSize: 10 }} />
+                      <YAxis yAxisId="left" tick={{ fontSize: 10 }} />
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} />
+                      <Tooltip />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      <Line
+                        yAxisId="left"
+                        type="monotone"
+                        dataKey="cycleDays"
+                        name="Cycle (Days)"
+                        stroke="#0D1B2E"
+                        strokeWidth={2.2}
+                      />
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="onTimePct"
+                        name="On-Time (%)"
+                        stroke="#0F8B8D"
+                        strokeWidth={2.2}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="flex h-52 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-xs font-semibold text-slate-500">
+                  Answer Q9 (Cycle Time) &amp; Q10 (Discounts) to render chart
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 4. CONSOLIDATED EXECUTIVE DIAGNOSTIC FINDINGS & ACTION REGISTER */}
+          {diagnosticFindings.length > 0 && (
+            <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
+              <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="h-4 w-4 text-amber-600" />
+                  <h2 className="text-sm font-extrabold text-slate-900">
+                    Executive Diagnostic Findings Generated ({diagnosticFindings.length})
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigateTo("roadmap")}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-800 hover:border-slate-400 hover:bg-slate-100"
+                >
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  <span>Open 3-Wave Roadmap →</span>
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-[10px] text-slate-500 uppercase">
+                      <th className="px-3 py-2.5 font-bold">Diagnostic Finding &amp; Implication</th>
+                      <th className="px-3 py-2.5 font-bold">Observed KPI Gap</th>
+                      <th className="px-3 py-2.5 font-bold">Recommended Transformation Lever</th>
+                      <th className="px-3 py-2.5 font-bold">Annual Impact</th>
+                      <th className="px-3 py-2.5 text-right font-bold">Workspace</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {diagnosticFindings.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-50/80">
+                        <td className="max-w-md px-3 py-3 align-top">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`rounded px-1.5 py-0.5 text-[10px] font-extrabold uppercase ${
+                                item.severity === "Critical"
+                                  ? "bg-red-100 text-red-800"
+                                  : item.severity === "High"
+                                    ? "bg-amber-100 text-amber-800"
+                                    : "bg-slate-200 text-slate-800"
+                              }`}
+                            >
+                              {item.severity}
+                            </span>
+                            <span className="font-bold text-slate-900">{item.title}</span>
+                          </div>
+                          <p className="mt-1 text-[11px] leading-snug text-slate-500">
+                            {item.implication}
+                          </p>
+                        </td>
+                        <td className="px-3 py-3 align-top whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => openKpiDrilldown(item.kpiId)}
+                            className="font-mono text-xs font-bold text-slate-900 underline decoration-[#FFE600] decoration-2 hover:text-slate-700"
+                          >
+                            {item.metric}
+                          </button>
+                        </td>
+                        <td className="max-w-sm px-3 py-3 align-top text-slate-700">
+                          {item.action}
+                        </td>
+                        <td className="px-3 py-3 align-top whitespace-nowrap">
+                          <span className="block font-mono font-bold text-emerald-700 tabular-nums">
+                            {item.impact}
+                          </span>
+                          <span className="text-[10px] text-slate-400">{item.wave}</span>
+                        </td>
+                        <td className="px-3 py-3 text-right align-top whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => navigateTo(item.targetSection)}
+                            className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-800 hover:border-slate-900"
+                          >
+                            <span>{item.sectionLabel}</span>
+                            <ArrowUpRight className="h-3 w-3" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useStudio } from "@/lib/studio/store";
 import type { OpportunityStatus } from "@/lib/studio/types";
+import { DiagnosticGate } from "../DiagnosticGate";
 
 function getQuadrantLabel(valueScore: number, complexityScore: number): {
   label: "Quick Wins" | "Strategic Investments" | "Tactical Improvements" | "Deprioritize";
@@ -45,6 +46,8 @@ function getQuadrantLabel(valueScore: number, complexityScore: number): {
 export function OpportunitiesScreen() {
   const {
     opportunities,
+    coreMetrics,
+    datasets,
     updateOpportunity,
     toggleOpportunityRoadmap,
   } = useStudio();
@@ -86,6 +89,15 @@ export function OpportunitiesScreen() {
       quickWinsCount,
     };
   }, [opportunities]);
+
+  if (coreMetrics.answeredCount === 0 && datasets.length === 0) {
+    return (
+      <DiagnosticGate
+        screenTitle="Automation & AI Opportunity Portfolio"
+        description="Transformation opportunities and the 4-quadrant prioritization matrix are sized from your captured diagnostic baselines and root causes. Complete the Diagnostic Interview or load SAP data first."
+      />
+    );
+  }
 
   const scatterData = opportunities.map((o) => ({
     id: o.id,

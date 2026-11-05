@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useStudio } from "@/lib/studio/store";
 import type { ValueScenario } from "@/lib/studio/types";
+import { DiagnosticGate } from "../DiagnosticGate";
 
 const COMPOSITION_COLORS = [
   "#0D1B2E",
@@ -38,10 +39,21 @@ export function ValueRealizationScreen() {
     valueAssumptions,
     activeScenario,
     valueSummary,
+    coreMetrics,
+    datasets,
     updateValueAssumptions,
     setActiveScenario,
     navigateTo,
   } = useStudio();
+
+  if (coreMetrics.answeredCount === 0 && datasets.length === 0) {
+    return (
+      <DiagnosticGate
+        screenTitle="CFO Value Realization & Business Case"
+        description="The deterministic 8-lever financial model requires baseline volume, FTE headcount, exception rate, touchless rate, and discount capture inputs. Capture responses in the Diagnostic Interview first."
+      />
+    );
+  }
 
   const compositionData = [
     { name: "Hard Savings", value: valueSummary.hardSavingsAnnualUsd },

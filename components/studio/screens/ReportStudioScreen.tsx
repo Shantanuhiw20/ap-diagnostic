@@ -22,6 +22,7 @@ import {
 import { useStudio } from "@/lib/studio/store";
 import type { ReportConfigState } from "@/lib/studio/types";
 import { exportStudioExecutivePdf } from "@/lib/studio/export-studio-pdf";
+import { DiagnosticGate } from "../DiagnosticGate";
 
 const REPORT_SECTIONS = [
   { id: "sec_01", num: "01", title: "Cover Page" },
@@ -61,6 +62,15 @@ export function ReportStudioScreen() {
   const [exportingPdf, setExportingPdf] = useState(false);
   const [cfoCritique, setCfoCritique] = useState<string | null>(null);
   const [runningCritique, setRunningCritique] = useState(false);
+
+  if (coreMetrics.answeredCount === 0 && datasets.length === 0) {
+    return (
+      <DiagnosticGate
+        screenTitle="14-Section Executive Consulting Report"
+        description="The board deliverable cannot be compiled until diagnostic interview responses or SAP transaction extracts have been captured. Complete the Diagnostic Interview or load the SAP extracts to generate the report."
+      />
+    );
+  }
 
   const scrollToReportSection = (secId: string) => {
     setActiveSectionId(secId);

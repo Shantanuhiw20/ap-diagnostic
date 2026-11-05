@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useStudio } from "@/lib/studio/store";
 import type { KpiId, RootCauseCategory, RootCauseItem } from "@/lib/studio/types";
+import { DiagnosticGate } from "../DiagnosticGate";
 
 const ROOT_CAUSE_CATEGORIES: RootCauseCategory[] = [
   "Process",
@@ -29,6 +30,7 @@ export function RootCauseScreen() {
     kpiBenchmarks,
     datasets,
     opportunities,
+    coreMetrics,
     addRootCause,
     updateRootCause,
     deleteRootCause,
@@ -36,8 +38,22 @@ export function RootCauseScreen() {
     openDrilldown,
   } = useStudio();
 
+  const hasAnyInputs = coreMetrics.answeredCount > 0 || datasets.length > 0;
+  const isAns = (code: string) => coreMetrics.answeredFieldCodes.includes(code);
+  const hasDs = (dsId: string) => datasets.some((d) => d.id === dsId);
+
+  // Only surface root causes whose underlying interview questions or SAP extracts have been captured
+  const unlockedRootCauses = rootCauses.filter((rc) => {
+    if (rc.id === "rc_01") return isAns("ap_04") || isAns("ap_03") || hasDs("ds_invoice_extract");
+    if (rc.id === "rc_02") return isAns("ap_07") || isAns("ap_08") || hasDs("ds_aging_extract");
+    if (rc.id === "rc_03") return isAns("ap_09") || isAns("ap_14") || hasDs("ds_po_extract");
+    if (rc.id === "rc_04") return isAns("ap_02_21") || isAns("ap_01") || hasDs("ds_vendor_master");
+    if (rc.id === "rc_05") return isAns("ap_17") || isAns("ap_01") || hasDs("ds_vendor_master");
+    return true;
+  });
+
   const [selectedRcId, setSelectedRcId] = useState<string>(
-    rootCauses[0]?.id ?? "rc_01",
+    unlockedRootCauses[0]?.id ?? "rc_01",
   );
   const [categoryFilter, setCategoryFilter] = useState<RootCauseCategory | "ALL">(
     "ALL",
@@ -53,13 +69,22 @@ export function RootCauseScreen() {
   const [newStatement, setNewStatement] = useState("");
   const [newLever, setNewLever] = useState("");
 
+  if (!hasAnyInputs || unlockedRootCauses.length === 0) {
+    return (
+      <DiagnosticGate
+        screenTitle="Root Cause Analysis"
+        description="Causal chains (RC-01 through RC-05) are synthesized only after you capture the corresponding interview responses (PO split, exception rate, cycle time, discount capture, and SoD controls) or ingest the SAP data extracts."
+      />
+    );
+  }
+
   const filteredRootCauses =
     categoryFilter === "ALL"
-      ? rootCauses
-      : rootCauses.filter((r) => r.category === categoryFilter);
+      ? unlockedRootCauses
+      : unlockedRootCauses.filter((r) => r.category === categoryFilter);
 
   const activeRc =
-    rootCauses.find((r) => r.id === selectedRcId) ?? rootCauses[0];
+    unlockedRootCauses.find((r) => r.id === selectedRcId) ?? unlockedRootCauses[0];
 
   const handleCreateRootCause = (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,7 +114,7 @@ export function RootCauseScreen() {
     setShowAddForm(false);
   };
 
-  const totalAnnualImpact = rootCauses.reduce(
+  const totalAnnualImpact = unlockedRootCauses.reduce(
     (s, r) => s + r.estimatedAnnualImpactUsd,
     0,
   );
@@ -110,7 +135,7 @@ export function RootCauseScreen() {
                   : "bg-slate-100 text-slate-700 hover:bg-slate-200"
               }`}
             >
-              All ({rootCauses.length})
+              All ({unlockedRootCauses.length})
             </button>
             {ROOT_CAUSE_CATEGORIES.map((cat) => (
               <button
