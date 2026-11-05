@@ -48,7 +48,7 @@ import {
   type ValueRealizationSummary,
 } from "./calculations";
 
-const STORAGE_KEY = "ey_ap_diagnostic_studio_v1";
+const STORAGE_KEY = "ey_ap_diagnostic_studio_v3";
 
 export interface ToastMessage {
   id: string;
@@ -84,12 +84,20 @@ function getDefaultState(): PersistedStudioState {
   return {
     clientName: "Harlow Industrial Components",
     engagementName: "Current-State AP Diagnostic | Finance Transformation",
-    engagementStatus: "Benchmarking & Value Case",
-    activeSection: "overview",
-    activeInterviewCategoryId: "invoice-volumes",
-    activeQuestionId: "q_vol_02",
-    questions: INITIAL_INTERVIEW_QUESTIONS,
-    datasets: INITIAL_DATASETS,
+    engagementStatus: "In Diagnostic",
+    activeSection: "interview",
+    activeInterviewCategoryId: "org-scope",
+    activeQuestionId: "q_org_01",
+    questions: INITIAL_INTERVIEW_QUESTIONS.map((q) => ({
+      ...q,
+      answer: "",
+      numericValue: undefined,
+      status: "unanswered",
+      notes: "",
+      attachedDatasetIds: [],
+      updatedAt: undefined,
+    })),
+    datasets: [],
     processStages: INITIAL_PROCESS_STAGES,
     benchmarkFilters: INITIAL_BENCHMARK_FILTERS,
     rootCauses: INITIAL_ROOT_CAUSES,
@@ -99,18 +107,8 @@ function getDefaultState(): PersistedStudioState {
     roadmapInitiatives: INITIAL_ROADMAP_INITIATIVES,
     reportConfig: INITIAL_REPORT_CONFIG,
     notifications: INITIAL_NOTIFICATIONS,
-    visitedSections: [
-      "overview",
-      "interview",
-      "data",
-      "process",
-      "benchmarks",
-      "root-causes",
-      "opportunities",
-      "value",
-      "roadmap",
-    ],
-    lastSavedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+    visitedSections: ["overview", "interview"],
+    lastSavedAt: "Just now",
     isDemoMode: true,
   };
 }
@@ -141,13 +139,21 @@ interface StudioContextValue extends PersistedStudioState {
   setClientName: (name: string) => void;
   setEngagementStatus: (status: PersistedStudioState["engagementStatus"]) => void;
   resetToHarlowBaseline: () => void;
+  loadCompletedDemoBaseline: () => void;
 
   // Interview
   setActiveInterviewCategory: (catId: string) => void;
   setActiveQuestion: (qId: string) => void;
-  updateQuestionAnswer: (questionId: string, answer: string, notes?: string) => void;
+  updateQuestionAnswer: (
+    questionId: string,
+    answer: string,
+    notes?: string,
+    options?: { silent?: boolean },
+  ) => void;
   skipQuestion: (questionId: string) => void;
   toggleDatasetOnQuestion: (questionId: string, datasetId: string) => void;
+  fillCategoryDemoAnswers: (catId: string) => void;
+  clearAllInterviewAnswers: () => void;
 
   // Data & Evidence
   uploadDatasetFile: (
@@ -157,6 +163,8 @@ interface StudioContextValue extends PersistedStudioState {
     description: string,
   ) => Promise<void>;
   removeDataset: (datasetId: string) => void;
+  ingestAllSampleDatasets: () => void;
+  ingestSingleSampleDataset: (datasetId: string) => void;
   updateDatasetLinks: (
     datasetId: string,
     links: Partial<
@@ -254,6 +262,8 @@ export function StudioProvider({
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
+        localStorage.removeItem("ey_ap_diagnostic_studio_v1");
+        localStorage.removeItem("ey_ap_diagnostic_studio_v2");
         const raw = localStorage.getItem(STORAGE_KEY);
         const params = new URLSearchParams(window.location.search);
         const secParam = params.get("section") as StudioSectionId | null;
@@ -266,7 +276,7 @@ export function StudioProvider({
           const nextSection =
             secParam && VALID_SECTIONS.includes(secParam)
               ? secParam
-              : initialSection ?? parsed.activeSection ?? prev.activeSection;
+              : parsed.activeSection ?? initialSection ?? prev.activeSection;
           const nextClient =
             clientParam && clientParam.trim()
               ? clientParam.trim()
@@ -313,14 +323,14 @@ export function StudioProvider({
   }, [state, hydrated]);
 
   const touchSaved = () =>
-    new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 
   const navigateTo = useCallback(
     (section: StudioSectionId, options?: { pushHistory?: boolean }) => {
+      if (state.activeSection !== section && options?.pushHistory !== false) {
+        setNavigationHistory((h) => [...h.slice(-19), state.activeSection]);
+      }
       setState((prev) => {
-        if (prev.activeSection !== section && options?.pushHistory !== false) {
-          setNavigationHistory((h) => [...h.slice(-19), prev.activeSection]);
-        }
         const visited = prev.visitedSections.includes(section)
           ? prev.visitedSections
           : [...prev.visitedSections, section];
@@ -342,7 +352,7 @@ export function StudioProvider({
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
     },
-    [],
+    [state.activeSection],
   );
 
   const goBack = useCallback(() => {
@@ -350,17 +360,15 @@ export function StudioProvider({
       setDrilldown(null);
       return;
     }
-    setNavigationHistory((prev) => {
-      if (prev.length === 0) {
-        navigateTo("overview", { pushHistory: false });
-        return prev;
-      }
-      const nextHist = [...prev];
-      const target = nextHist.pop()!;
-      navigateTo(target, { pushHistory: false });
-      return nextHist;
-    });
-  }, [drilldown, navigateTo]);
+    if (navigationHistory.length === 0) {
+      navigateTo("overview", { pushHistory: false });
+      return;
+    }
+    const nextHist = [...navigationHistory];
+    const target = nextHist.pop()!;
+    setNavigationHistory(nextHist);
+    navigateTo(target, { pushHistory: false });
+  }, [drilldown, navigationHistory, navigateTo]);
 
   const openDrilldown = useCallback((target: DrilldownTarget) => {
     setDrilldown(target);
@@ -416,10 +424,100 @@ export function StudioProvider({
       localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh));
     }
     pushToast(
-      "Session reset to Harlow baseline",
-      "Restored the full Harlow Industrial Components diagnostic dataset.",
+      "Diagnostic reset to clean slate (0%)",
+      "All interview answers and uploaded datasets cleared. Ready for live CFO walkthrough.",
       "info",
     );
+  }, [pushToast]);
+
+  const loadCompletedDemoBaseline = useCallback(() => {
+    setState((prev) => {
+      const completedQuestions: InterviewQuestion[] = INITIAL_INTERVIEW_QUESTIONS.map((q) => ({
+        ...q,
+        answer: q.demoAnswer ?? q.suggestedAnswers[0] ?? "",
+        numericValue: q.demoNumericValue,
+        notes: q.demoNotes ?? "",
+        status: "answered",
+        attachedDatasetIds: q.demoAttachedDatasetIds ?? [],
+        updatedAt: new Date().toISOString(),
+      }));
+      const next: PersistedStudioState = {
+        ...prev,
+        engagementStatus: "Ready for Executive Sign-Off",
+        questions: completedQuestions,
+        datasets: INITIAL_DATASETS,
+        valueAssumptions: INITIAL_VALUE_ASSUMPTIONS,
+        visitedSections: VALID_SECTIONS,
+        lastSavedAt: touchSaved(),
+      };
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      }
+      return next;
+    });
+    pushToast(
+      "Completed demo baseline loaded (100%)",
+      "All 12 interview responses and 4 SAP datasets populated for Harlow Industrial Components.",
+    );
+  }, [pushToast]);
+
+  const fillCategoryDemoAnswers = useCallback(
+    (catId: string) => {
+      setState((prev) => {
+        const nextAssumptions = { ...prev.valueAssumptions };
+        const nextQuestions = prev.questions.map((q) => {
+          if (q.categoryId !== catId) return q;
+          const ans = q.demoAnswer ?? q.suggestedAnswers[0] ?? "";
+          const num = q.demoNumericValue;
+          if (num !== undefined && num > 0) {
+            if (q.fieldCode === "ap_03") nextAssumptions.annualInvoiceVolume = Math.round(num * 12);
+            if (q.fieldCode === "ap_19") nextAssumptions.apHeadcount = num;
+            if (q.fieldCode === "ap_08") nextAssumptions.exceptionRatePct = Math.min(100, num);
+            if (q.fieldCode === "ap_14") nextAssumptions.discountCaptureRatePct = Math.min(100, num);
+            if (q.fieldCode === "ap_17") nextAssumptions.monthlyVendorQueries = Math.round(num);
+            if (q.fieldCode === "ap_touchless") nextAssumptions.currentAutomationRatePct = Math.min(100, num);
+          }
+          return {
+            ...q,
+            answer: ans,
+            numericValue: num,
+            notes: q.demoNotes ?? q.notes ?? "",
+            status: "answered" as const,
+            attachedDatasetIds: q.demoAttachedDatasetIds ?? q.attachedDatasetIds,
+            updatedAt: new Date().toISOString(),
+          };
+        });
+        return {
+          ...prev,
+          questions: nextQuestions,
+          valueAssumptions: nextAssumptions,
+          lastSavedAt: touchSaved(),
+        };
+      });
+      pushToast("Category populated", "Captured baseline responses and synced KPIs.");
+    },
+    [pushToast],
+  );
+
+  const clearAllInterviewAnswers = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      engagementStatus: "In Diagnostic",
+      activeInterviewCategoryId: "org-scope",
+      activeQuestionId: "q_org_01",
+      questions: INITIAL_INTERVIEW_QUESTIONS.map((q) => ({
+        ...q,
+        answer: "",
+        numericValue: undefined,
+        status: "unanswered",
+        notes: "",
+        attachedDatasetIds: [],
+        updatedAt: undefined,
+      })),
+      valueAssumptions: INITIAL_VALUE_ASSUMPTIONS,
+      lastSavedAt: touchSaved(),
+    }));
+    pushToast("All interview answers reset", "Cleared all 12 diagnostic responses back to 0%.", "info");
   }, [pushToast]);
 
   // Interview actions
@@ -446,7 +544,12 @@ export function StudioProvider({
   }, []);
 
   const updateQuestionAnswer = useCallback(
-    (questionId: string, answer: string, notes?: string) => {
+    (
+      questionId: string,
+      answer: string,
+      notes?: string,
+      options?: { silent?: boolean },
+    ) => {
       setState((prev) => {
         const parsedNum = Number(String(answer).replace(/[^0-9.-]/g, ""));
         const validNum = !Number.isNaN(parsedNum) && parsedNum >= 0 ? parsedNum : undefined;
@@ -491,7 +594,9 @@ export function StudioProvider({
           lastSavedAt: touchSaved(),
         };
       });
-      pushToast("Diagnostic answer saved", "KPIs, benchmarks, and value model updated.");
+      if (!options?.silent) {
+        pushToast("Diagnostic answer saved", "KPIs, benchmarks, and value model updated.");
+      }
     },
     [pushToast],
   );
@@ -729,6 +834,40 @@ export function StudioProvider({
         lastSavedAt: touchSaved(),
       }));
       pushToast("Dataset removed", "Evidence register updated.", "info");
+    },
+    [pushToast],
+  );
+
+  const ingestAllSampleDatasets = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      datasets: INITIAL_DATASETS,
+      lastSavedAt: touchSaved(),
+    }));
+    pushToast(
+      "4 SAP Evidence Extracts Ingested",
+      "Validated 24,750 ERP records across Invoice Register, Aging, Vendor Master & PO Terms.",
+    );
+  }, [pushToast]);
+
+  const ingestSingleSampleDataset = useCallback(
+    (datasetId: string) => {
+      const target = INITIAL_DATASETS.find((d) => d.id === datasetId);
+      if (!target) return;
+      setState((prev) => {
+        const exists = prev.datasets.some((d) => d.id === datasetId);
+        return {
+          ...prev,
+          datasets: exists
+            ? prev.datasets.map((d) => (d.id === datasetId ? target : d))
+            : [...prev.datasets, target],
+          lastSavedAt: touchSaved(),
+        };
+      });
+      pushToast(
+        `${target.datasetType} Ingested`,
+        `Validated ${target.records.toLocaleString()} records (${target.fileName}).`,
+      );
     },
     [pushToast],
   );
@@ -1079,75 +1218,80 @@ export function StudioProvider({
   const sectionCompletion = useMemo(() => {
     const answeredQ = state.questions.filter((q) => q.status === "answered").length;
     const totalQ = state.questions.length;
-    const interviewPct = Math.round((answeredQ / totalQ) * 100);
+    const interviewPct = totalQ > 0 ? Math.round((answeredQ / totalQ) * 100) : 0;
 
     const verifiedDs = state.datasets.length;
-    const dataPct = Math.min(100, Math.round((verifiedDs / 6) * 100));
+    const totalSampleDs = INITIAL_DATASETS.length;
+    const dataPct = Math.min(100, Math.round((verifiedDs / totalSampleDs) * 100));
 
-    const processPct = 100; // All 12 stages assessed
-    const benchmarkPct = 100;
-    const rootCausePct = state.rootCauses.length >= 4 ? 100 : 75;
+    const hasInputs = answeredQ > 0 || verifiedDs > 0;
+    const intakePct = Math.round(interviewPct * 0.75 + dataPct * 0.25);
+    const modelReadyPct = interviewPct === 100 ? 100 : intakePct;
+
+    const toState = (pct: number): CompletionState =>
+      pct >= 100 ? "completed" : pct > 0 ? "in-progress" : "not-started";
+
     const selectedOpps = state.opportunities.filter(
       (o) => o.status === "Selected",
     ).length;
-    const oppPct = selectedOpps >= 6 ? 100 : 80;
-    const valuePct = 100;
-    const roadmapPct = state.roadmapInitiatives.length >= 4 ? 100 : 75;
-    const reportPct = state.visitedSections.includes("report") ? 100 : 85;
 
     const map: Record<
       StudioSectionId,
       { state: CompletionState; pct: number; detail: string }
     > = {
       overview: {
-        state: "completed",
-        pct: 100,
-        detail: "Executive KPIs & insights active",
+        state: toState(modelReadyPct),
+        pct: modelReadyPct,
+        detail: hasInputs
+          ? `${answeredQ}/${totalQ} interview inputs · ${verifiedDs}/${totalSampleDs} ERP extracts active`
+          : "Awaiting diagnostic interview & ERP data intake",
       },
       interview: {
-        state: interviewPct === 100 ? "completed" : "in-progress",
+        state: toState(interviewPct),
         pct: interviewPct,
         detail: `${answeredQ}/${totalQ} diagnostic questions answered`,
       },
       data: {
-        state: dataPct >= 100 ? "completed" : "in-progress",
+        state: toState(dataPct),
         pct: dataPct,
-        detail: `${state.datasets.length} datasets validated & mapped`,
+        detail: `${verifiedDs} of ${totalSampleDs} SAP extracts validated`,
       },
       process: {
-        state: "completed",
-        pct: processPct,
-        detail: `12/12 stages assessed (Avg ${coreMetrics.avgMaturity}/5.0)`,
+        state: toState(modelReadyPct),
+        pct: modelReadyPct,
+        detail: `12 stages assessed (Avg ${coreMetrics.avgMaturity}/5.0)`,
       },
       benchmarks: {
-        state: "completed",
-        pct: benchmarkPct,
+        state: toState(modelReadyPct),
+        pct: modelReadyPct,
         detail: `11 KPIs benchmarked vs Peer & Best-in-Class`,
       },
       "root-causes": {
-        state: rootCausePct === 100 ? "completed" : "in-progress",
-        pct: rootCausePct,
-        detail: `${state.rootCauses.length} causal chains mapped to KPIs`,
+        state: toState(modelReadyPct),
+        pct: modelReadyPct,
+        detail: `${state.rootCauses.length} causal chains linked to KPIs`,
       },
       opportunities: {
-        state: oppPct === 100 ? "completed" : "in-progress",
-        pct: oppPct,
-        detail: `${selectedOpps} of ${state.opportunities.length} opportunities selected`,
+        state: toState(modelReadyPct),
+        pct: modelReadyPct,
+        detail: `${selectedOpps} of ${state.opportunities.length} levers selected`,
       },
       value: {
-        state: "completed",
-        pct: valuePct,
-        detail: `$${(valueSummary.grossAnnualBenefitUsd / 1000).toFixed(0)}k gross annual benefit (${state.activeScenario})`,
+        state: toState(modelReadyPct),
+        pct: modelReadyPct,
+        detail: hasInputs
+          ? `$${(valueSummary.grossAnnualBenefitUsd / 1000).toFixed(0)}k gross annual benefit (${state.activeScenario})`
+          : "Enter volume & exception baselines to unlock CFO model",
       },
       roadmap: {
-        state: roadmapPct === 100 ? "completed" : "in-progress",
-        pct: roadmapPct,
+        state: toState(modelReadyPct),
+        pct: modelReadyPct,
         detail: `${state.roadmapInitiatives.length} initiatives across 3 waves`,
       },
       report: {
-        state: reportPct === 100 ? "completed" : "in-progress",
-        pct: reportPct,
-        detail: "14-section consulting deliverable ready",
+        state: toState(modelReadyPct),
+        pct: modelReadyPct,
+        detail: "14-section board deliverable synced",
       },
     };
     return map;
@@ -1157,16 +1301,18 @@ export function StudioProvider({
     state.rootCauses.length,
     state.opportunities,
     state.roadmapInitiatives.length,
-    state.visitedSections,
     state.activeScenario,
     coreMetrics.avgMaturity,
     valueSummary.grossAnnualBenefitUsd,
   ]);
 
   const overallCompletionPct = useMemo(() => {
-    const vals = Object.values(sectionCompletion).map((s) => s.pct);
-    return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
-  }, [sectionCompletion]);
+    const answeredQ = state.questions.filter((q) => q.status === "answered").length;
+    const totalQ = state.questions.length;
+    const interviewPct = totalQ > 0 ? (answeredQ / totalQ) * 100 : 0;
+    const dataPct = Math.min(100, (state.datasets.length / INITIAL_DATASETS.length) * 100);
+    return Math.round(interviewPct * 0.75 + dataPct * 0.25);
+  }, [state.questions, state.datasets.length]);
 
   const value: StudioContextValue = {
     ...state,
@@ -1191,13 +1337,18 @@ export function StudioProvider({
     setClientName,
     setEngagementStatus,
     resetToHarlowBaseline,
+    loadCompletedDemoBaseline,
     setActiveInterviewCategory,
     setActiveQuestion,
     updateQuestionAnswer,
     skipQuestion,
     toggleDatasetOnQuestion,
+    fillCategoryDemoAnswers,
+    clearAllInterviewAnswers,
     uploadDatasetFile,
     removeDataset,
+    ingestAllSampleDatasets,
+    ingestSingleSampleDataset,
     updateDatasetLinks,
     updateProcessStage,
     updateBenchmarkFilters,

@@ -48,13 +48,19 @@ export function deriveCoreMetrics(
     return fallback;
   };
 
+  const answeredQuestions = questions.filter((q) => q.status === "answered");
+  const answeredCount = answeredQuestions.length;
+  const totalQuestions = questions.length;
+  const answeredFieldCodes = answeredQuestions.map((q) => q.fieldCode);
+
+  const activeVendors = getNum("ap_01", 3150);
   const monthlyInvoices = getNum("ap_03", Math.round(assumptions.annualInvoiceVolume / 12));
   const annualInvoices = monthlyInvoices * 12;
   const ftes = getNum("ap_19", assumptions.apHeadcount);
   const poBackedRate = getNum("ap_04", 62);
   const exceptionRate = getNum("ap_08", assumptions.exceptionRatePct);
   const cycleTimeDays = getNum("ap_09", 6.0);
-  const onTimePaymentRate = getNum("ap_11", 81);
+  const onTimePaymentRate = getNum("ap_11", cycleTimeDays <= 3.8 ? 91 : cycleTimeDays >= 8 ? 68 : 81);
   const dpoDays = getNum("ap_10", 58);
   const discountCaptureRate = getNum("ap_14", assumptions.discountCaptureRatePct);
   const monthlyQueries = getNum("ap_17", assumptions.monthlyVendorQueries);
@@ -71,9 +77,18 @@ export function deriveCoreMetrics(
         ) / 10
       : 2.3;
 
-  const costPerInvoice = assumptions.costPerInvoiceUsd;
+  // Dynamic unit cost formula calibrated to $11.80 at Harlow baseline (144k inv, 9 FTEs, 18% exc, 34% touchless)
+  const dynamicCost =
+    (ftes * 98000) / Math.max(1, annualInvoices) +
+    (exceptionRate / 100) * 18.5 +
+    ((100 - touchlessRate) / 100) * 3.553;
+  const costPerInvoice =
+    answeredFieldCodes.some((c) => ["ap_03", "ap_19", "ap_08", "ap_touchless"].includes(c))
+      ? Number(dynamicCost.toFixed(2))
+      : assumptions.costPerInvoiceUsd;
 
   return {
+    activeVendors,
     monthlyInvoices,
     annualInvoices,
     ftes,
@@ -89,6 +104,9 @@ export function deriveCoreMetrics(
     invoicesPerFte,
     avgMaturity,
     costPerInvoice,
+    answeredCount,
+    totalQuestions,
+    answeredFieldCodes,
   };
 }
 

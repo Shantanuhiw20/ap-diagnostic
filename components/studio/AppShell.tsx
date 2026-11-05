@@ -143,7 +143,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const {
     clientName,
     engagementName,
-    engagementStatus,
     activeSection,
     sectionCompletion,
     overallCompletionPct,
@@ -168,8 +167,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     markAllNotificationsRead,
     saveNow,
     setClientName,
-    setEngagementStatus,
     resetToHarlowBaseline,
+    loadCompletedDemoBaseline,
   } = useStudio();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -334,27 +333,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Pencil className="h-3 w-3 text-slate-500 transition-colors group-hover:text-slate-300" />
               </button>
 
-              <select
-                aria-label="Engagement status"
-                value={engagementStatus}
-                onChange={(e) =>
-                  setEngagementStatus(
-                    e.target.value as
-                      | "In Diagnostic"
-                      | "Benchmarking & Value Case"
-                      | "Ready for Executive Sign-Off",
-                  )
-                }
-                className="hidden rounded-md border border-slate-800 bg-slate-900/90 px-2.5 py-1 text-xs font-medium text-slate-300 outline-none focus:border-[#FFE600] xl:block"
+              <span
+                className={`hidden items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold xl:inline-flex ${
+                  overallCompletionPct === 100
+                    ? "border-emerald-500/40 bg-emerald-950/50 text-emerald-300"
+                    : overallCompletionPct > 0
+                      ? "border-amber-400/40 bg-amber-950/40 text-[#FFE600]"
+                      : "border-slate-800 bg-slate-900/90 text-slate-400"
+                }`}
               >
-                <option value="In Diagnostic">In Diagnostic</option>
-                <option value="Benchmarking & Value Case">
-                  Benchmarking &amp; Value Case
-                </option>
-                <option value="Ready for Executive Sign-Off">
-                  Ready for Executive Sign-Off
-                </option>
-              </select>
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    overallCompletionPct === 100
+                      ? "bg-emerald-400"
+                      : overallCompletionPct > 0
+                        ? "bg-[#FFE600]"
+                        : "bg-slate-500"
+                  }`}
+                />
+                <span>
+                  {overallCompletionPct === 100
+                    ? "Executive Sign-Off Ready"
+                    : overallCompletionPct > 0
+                      ? `Live Diagnostic (${overallCompletionPct}%)`
+                      : "Awaiting Discovery Inputs"}
+                </span>
+              </span>
             </div>
           </div>
 
@@ -509,11 +513,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={() => setResetModalOpen(true)}
-              className="rounded-md border border-slate-800 bg-slate-900/80 p-1.5 text-slate-300 transition-colors hover:border-slate-600 hover:text-white"
-              title="Reset to baseline"
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900/90 px-2.5 py-1.5 text-xs font-bold text-slate-200 transition-colors hover:border-[#FFE600] hover:text-white"
+              title="Reset interview answers and datasets"
               aria-label="Reset diagnostic session"
             >
-              <RotateCcw className="h-4 w-4" />
+              <RotateCcw className="h-3.5 w-3.5 text-[#FFE600]" />
+              <span>Reset</span>
             </button>
 
             {/* Primary Export PDF CTA */}
@@ -624,12 +629,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 Value Case ({valueSummary.scenario})
               </span>
               <span className="font-mono text-xs font-extrabold text-[#FFE600] tabular-nums">
-                ${(valueSummary.grossAnnualBenefitUsd / 1000).toFixed(0)}k/yr
+                {coreMetrics.answeredCount > 0 || datasets.length > 0
+                  ? `$${Math.round(
+                      (valueSummary.grossAnnualBenefitUsd *
+                        Math.max(
+                          0.15,
+                          coreMetrics.answeredCount /
+                            Math.max(1, coreMetrics.totalQuestions),
+                        )) /
+                        1000,
+                    )}k/yr`
+                  : "$0k/yr"}
               </span>
             </div>
             <div className="mt-1 flex items-center justify-between font-mono text-[10px] text-slate-400 tabular-nums">
-              <span>Payback: {valueSummary.paybackMonths}m</span>
-              <span className="text-emerald-400">3Y ROI: {valueSummary.roiPct}%</span>
+              <span>
+                {coreMetrics.answeredCount > 0 || datasets.length > 0
+                  ? `Payback: ${valueSummary.paybackMonths}m`
+                  : "Awaiting Inputs"}
+              </span>
+              <span className="text-emerald-400">
+                {coreMetrics.answeredCount > 0 || datasets.length > 0
+                  ? `3Y ROI: ${valueSummary.roiPct}%`
+                  : `${coreMetrics.answeredCount}/${coreMetrics.totalQuestions} Qs`}
+              </span>
             </div>
           </div>
         </aside>
@@ -771,21 +794,41 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Reset Session Confirmation Modal */}
       {resetModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4">
-          <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-6 shadow-2xl">
             <h3 className="text-base font-bold text-slate-900">
-              Reset Diagnostic Engagement?
+              Reset Diagnostic Answers &amp; Session?
             </h3>
             <p className="mt-2 text-sm text-slate-600">
-              This will restore all interview responses, uploaded datasets, process maturity scores, value assumptions, and roadmap waves back to the clean{" "}
-              <strong>Harlow Industrial Components</strong> baseline.
+              Choose how you would like to reset the{" "}
+              <strong>{clientName}</strong> diagnostic session:
             </p>
-            <div className="mt-6 flex justify-end gap-2">
+            <div className="mt-4 space-y-2.5 text-xs text-slate-600">
+              <div className="rounded-lg border border-red-200 bg-red-50/60 p-3">
+                <strong className="text-slate-900">1. Reset All Answers &amp; Data (0% Clean Slate):</strong>{" "}
+                Clears all 12 interview responses and removes ingested SAP datasets so you can walk the CFO through the live question-by-question demo from scratch.
+              </div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <strong className="text-slate-900">2. Auto-Load Completed Demo (100%):</strong>{" "}
+                Populates all 12 Harlow Industrial Components answers and 4 SAP extracts immediately.
+              </div>
+            </div>
+            <div className="mt-6 flex flex-wrap justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setResetModalOpen(false)}
-                className="rounded-lg border border-slate-300 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+                className="rounded-lg border border-slate-300 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
               >
                 Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  loadCompletedDemoBaseline();
+                  setResetModalOpen(false);
+                }}
+                className="rounded-lg border border-slate-900 bg-white px-3.5 py-2 text-xs font-bold text-slate-900 hover:bg-slate-100"
+              >
+                Load Completed Demo (100%)
               </button>
               <button
                 type="button"
@@ -793,9 +836,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   resetToHarlowBaseline();
                   setResetModalOpen(false);
                 }}
-                className="rounded-lg bg-red-600 px-4 py-2 text-xs font-bold text-white hover:bg-red-700"
+                className="rounded-lg bg-red-600 px-4 py-2 text-xs font-extrabold text-white hover:bg-red-700"
               >
-                Confirm Reset to Baseline
+                Reset All Answers (0% Clean Slate)
               </button>
             </div>
           </div>

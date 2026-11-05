@@ -1,39 +1,39 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import {
   CheckCircle2,
   AlertTriangle,
   Bot,
-  Paperclip,
   ArrowLeft,
   ArrowRight,
-  Save,
-  SkipForward,
   Sparkles,
   ShieldAlert,
-  Database,
-  MessageSquare,
-  Send,
+  RotateCcw,
+  Zap,
+  TrendingUp,
+  Sliders,
+  Clock,
 } from "lucide-react";
 import { useStudio } from "@/lib/studio/store";
 import { INTERVIEW_CATEGORIES } from "@/lib/studio/seed-data";
+import type { KpiId } from "@/lib/studio/types";
 
 export function InterviewScreen() {
   const {
-    clientName,
     questions,
-    datasets,
     processStages,
     rootCauses,
     activeInterviewCategoryId,
     activeQuestionId,
     coreMetrics,
+    valueSummary,
     setActiveInterviewCategory,
     setActiveQuestion,
     updateQuestionAnswer,
-    skipQuestion,
-    toggleDatasetOnQuestion,
+    fillCategoryDemoAnswers,
+    clearAllInterviewAnswers,
+    loadCompletedDemoBaseline,
     openKpiDrilldown,
     navigateTo,
   } = useStudio();
@@ -46,91 +46,109 @@ export function InterviewScreen() {
     [questions, activeQuestionId, activeInterviewCategoryId],
   );
 
-  const [draftAnswer, setDraftAnswer] = useState(currentQuestion?.answer ?? "");
-  const [draftNotes, setDraftNotes] = useState(currentQuestion?.notes ?? "");
-  const [copilotOpen, setCopilotOpen] = useState(false);
-  const [copilotInput, setCopilotInput] = useState("");
-  const [copilotLog, setCopilotLog] = useState<Array<{ role: "assistant" | "user"; text: string }>>([
-    {
-      role: "assistant",
-      text: `Structured Diagnostic Assistant active for ${clientName}. I cross-check your responses across all 8 categories against uploaded datasets (DS-01 to DS-06) and highlight causal linkages or contradictions in real time.`,
-    },
-  ]);
+  const draftAnswer = currentQuestion?.answer ?? "";
+  const draftNotes = currentQuestion?.notes ?? "";
 
-  // Sync draft state when user switches questions
   const handleSelectQuestion = (qId: string) => {
-    const target = questions.find((q) => q.id === qId);
-    if (target) {
-      setDraftAnswer(target.answer);
-      setDraftNotes(target.notes ?? "");
-      setActiveQuestion(qId);
-    }
+    setActiveQuestion(qId);
   };
 
   const handleSelectCategory = (catId: string) => {
     setActiveInterviewCategory(catId);
-    const firstQ = questions.find((q) => q.categoryId === catId);
-    if (firstQ) {
-      setDraftAnswer(firstQ.answer);
-      setDraftNotes(firstQ.notes ?? "");
-    }
   };
 
   const currentIndex = questions.findIndex((q) => q.id === currentQuestion.id);
   const categoryQuestions = questions.filter(
     (q) => q.categoryId === currentQuestion.categoryId,
   );
+  const answeredTotal = questions.filter((q) => q.status === "answered").length;
+  const progressPct =
+    questions.length > 0 ? Math.round((answeredTotal / questions.length) * 100) : 0;
 
-  const handleSaveCurrent = () => {
-    updateQuestionAnswer(currentQuestion.id, draftAnswer, draftNotes);
+  // Calculate live unlocked value case proportional to answered questions
+  const unlockedValueUsd = useMemo(() => {
+    if (answeredTotal === 0) return 0;
+    if (answeredTotal === questions.length) return valueSummary.grossAnnualBenefitUsd;
+    const sumFromAnswered = questions
+      .filter((q) => q.status === "answered")
+      .reduce((acc, q) => acc + (q.valueUnlockedUsd ?? 45000), 0);
+    return Math.min(valueSummary.grossAnnualBenefitUsd, sumFromAnswered);
+  }, [answeredTotal, questions, valueSummary.grossAnnualBenefitUsd]);
+
+  // Apply answer immediately when clicking a scenario card or option
+  const handleInstantApply = (val: string, presetNotes?: string, silent?: boolean) => {
+    const nextNotes = presetNotes ?? currentQuestion.demoNotes ?? draftNotes;
+    updateQuestionAnswer(currentQuestion.id, val, nextNotes, { silent });
   };
 
-  const handleNextQuestion = () => {
-    updateQuestionAnswer(currentQuestion.id, draftAnswer, draftNotes);
+  const handleConfirmAndNext = () => {
+    const valToSave =
+      draftAnswer.trim() ||
+      currentQuestion.demoAnswer ||
+      currentQuestion.suggestedAnswers[0] ||
+      "";
+    const notesToSave =
+      draftNotes.trim() || currentQuestion.demoNotes || "";
+    updateQuestionAnswer(currentQuestion.id, valToSave, notesToSave);
+
     if (currentIndex < questions.length - 1) {
       const nextQ = questions[currentIndex + 1];
-      setDraftAnswer(nextQ.answer);
-      setDraftNotes(nextQ.notes ?? "");
       setActiveQuestion(nextQ.id);
+    } else {
+      navigateTo("data");
     }
   };
 
   const handlePrevQuestion = () => {
     if (currentIndex > 0) {
       const prevQ = questions[currentIndex - 1];
-      setDraftAnswer(prevQ.answer);
-      setDraftNotes(prevQ.notes ?? "");
       setActiveQuestion(prevQ.id);
     }
   };
 
-  // Detect any cross-field analytical warnings or contradictions
+  const handleClearCurrentAnswer = () => {
+    updateQuestionAnswer(currentQuestion.id, "", "", { silent: true });
+  };
+
+  // Dynamic validation & control alerts — ONLY surface once the underlying question is answered!
   const validationWarnings = useMemo(() => {
-    const warnings: Array<{ catId: string; message: string }> = [];
-    if (coreMetrics.poBackedRate < 70 && coreMetrics.touchlessRate > 65) {
+    const warnings: Array<{ catId: string; severity: "critical" | "warning"; message: string }> = [];
+    const isAns = (code: string) => coreMetrics.answeredFieldCodes.includes(code);
+
+    if (isAns("ap_04") && isAns("ap_touchless") && coreMetrics.poBackedRate < 70 && coreMetrics.touchlessRate > 65) {
       warnings.push({
         catId: "technology-systems",
-        message: `Contradiction: Touchless rate (${coreMetrics.touchlessRate}%) exceeds PO-backed rate (${coreMetrics.poBackedRate}%). Non-PO invoices rarely post touchlessly without auto-coding rules.`,
+        severity: "critical",
+        message: `Contradiction: Touchless rate (${coreMetrics.touchlessRate}%) exceeds PO-backed rate (${coreMetrics.poBackedRate}%). Non-PO invoices cannot post touchlessly without auto-coding rules.`,
       });
     }
-    if (coreMetrics.dpoDays >= 55 && coreMetrics.onTimePaymentRate < 75) {
+    if (isAns("ap_04") && coreMetrics.poBackedRate < 75) {
+      warnings.push({
+        catId: "technology-systems",
+        severity: "critical",
+        message: `High Non-PO Spend (${100 - coreMetrics.poBackedRate}%): ${Math.round(coreMetrics.annualInvoices * ((100 - coreMetrics.poBackedRate) / 100)).toLocaleString()} invoices/yr bypass 3-way matching.`,
+      });
+    }
+    if (isAns("ap_08") && coreMetrics.exceptionRate >= 15) {
+      warnings.push({
+        catId: "process-workflow",
+        severity: "critical",
+        message: `High Exception Rate (${coreMetrics.exceptionRate}%): ${Math.round(coreMetrics.annualInvoices * (coreMetrics.exceptionRate / 100)).toLocaleString()} reworks/yr (~3.0 FTEs consumed).`,
+      });
+    }
+    if (isAns("ap_14") && coreMetrics.discountCaptureRate < 55) {
       warnings.push({
         catId: "performance-kpis",
-        message: `High DPO (${coreMetrics.dpoDays}d) paired with low On-Time Payment (${coreMetrics.onTimePaymentRate}%) indicates late payment rather than negotiated terms.`,
+        severity: "warning",
+        message: `Cash Leakage: Only ${coreMetrics.discountCaptureRate}% of 2/10 Net 30 discounts captured (~$173.6k/yr forfeited in approval queues).`,
       });
     }
     const sodQ = questions.find((q) => q.id === "q_ctrl_01");
-    if (sodQ?.answer.toLowerCase().includes("no independent")) {
+    if (sodQ?.status === "answered" && sodQ.answer.toLowerCase().includes("no independent")) {
       warnings.push({
         catId: "controls-compliance",
-        message: "Critical SoD Control Finding: AP processors hold unsegregated vendor creation access.",
-      });
-    }
-    const excQ = questions.find((q) => q.id === "q_proc_02");
-    if (excQ && (excQ.numericValue ?? 0) >= 15) {
-      warnings.push({
-        catId: "process-workflow",
-        message: `High Exception Rate (${excQ.answer}%): Above 15% threshold — AP is operating as a rework function.`,
+        severity: "critical",
+        message: "Critical SoD Control Gap: AP processors hold unsegregated SAP vendor master creation & bank edit rights.",
       });
     }
     return warnings;
@@ -143,34 +161,171 @@ export function InterviewScreen() {
     currentQuestion.linkedRootCauseIds.includes(r.id),
   );
 
-  const handleCopilotAsk = (e: React.FormEvent) => {
-    e.preventDefault();
-    const trimmed = copilotInput.trim();
-    if (!trimmed) return;
-    const nextUser = { role: "user" as const, text: trimmed };
-
-    // Deterministic contextual diagnostic response grounded in current question & metrics
-    const replyText =
-      `For **${currentQuestion.title}** (\`${currentQuestion.fieldCode}\`), ${clientName}'s recorded value is **${draftAnswer || "unanswered"}**. ` +
-      `In our causal model, this directly impacts **${currentQuestion.linkedKpiId ?? "process maturity"}** and links to evidence **${currentQuestion.requiredEvidence}**. ` +
-      `Follow-up to probe with the client: *"${currentQuestion.followUpPrompt}"*`;
-
-    setCopilotLog((prev) => [...prev, nextUser, { role: "assistant", text: replyText }]);
-    setCopilotInput("");
-  };
+  // Map each right-panel KPI to the question that unlocks it
+  const liveKpiRows: Array<{
+    id: KpiId;
+    label: string;
+    unlocked: boolean;
+    questionId: string;
+    questionLabel: string;
+    val: string;
+    peerText: string;
+    status: "critical" | "warning" | "good";
+  }> = [
+    {
+      id: "invoices_per_fte",
+      label: "Invoices / FTE",
+      unlocked:
+        coreMetrics.answeredFieldCodes.includes("ap_03") &&
+        coreMetrics.answeredFieldCodes.includes("ap_19"),
+      questionId: !coreMetrics.answeredFieldCodes.includes("ap_03") ? "q_vol_01" : "q_wf_01",
+      questionLabel: !coreMetrics.answeredFieldCodes.includes("ap_03") ? "Q3 (Volume)" : "Q4 (FTEs)",
+      val: `${coreMetrics.invoicesPerFte.toLocaleString()}/yr`,
+      peerText: "Peer: 36,000",
+      status: coreMetrics.invoicesPerFte < 25000 ? "critical" : "good",
+    },
+    {
+      id: "cost_per_invoice",
+      label: "Unit Cost / Invoice",
+      unlocked:
+        coreMetrics.answeredFieldCodes.includes("ap_03") &&
+        coreMetrics.answeredFieldCodes.includes("ap_19"),
+      questionId: "q_wf_01",
+      questionLabel: "Q4 (FTEs)",
+      val: `$${coreMetrics.costPerInvoice.toFixed(2)}`,
+      peerText: "Peer: $5.20",
+      status: coreMetrics.costPerInvoice > 8 ? "critical" : "good",
+    },
+    {
+      id: "po_backed_rate",
+      label: "PO-Backed Share",
+      unlocked: coreMetrics.answeredFieldCodes.includes("ap_04"),
+      questionId: "q_vol_02",
+      questionLabel: "Q5 (PO Split)",
+      val: `${coreMetrics.poBackedRate}%`,
+      peerText: "Peer: 85%",
+      status: coreMetrics.poBackedRate < 75 ? "critical" : "good",
+    },
+    {
+      id: "touchless_rate",
+      label: "Touchless Rate",
+      unlocked: coreMetrics.answeredFieldCodes.includes("ap_touchless"),
+      questionId: "q_tech_02",
+      questionLabel: "Q6 (Touchless)",
+      val: `${coreMetrics.touchlessRate}%`,
+      peerText: "Peer: 65%",
+      status: coreMetrics.touchlessRate < 50 ? "critical" : "good",
+    },
+    {
+      id: "exception_rate",
+      label: "Exception Rate",
+      unlocked: coreMetrics.answeredFieldCodes.includes("ap_08"),
+      questionId: "q_proc_02",
+      questionLabel: "Q8 (Exceptions)",
+      val: `${coreMetrics.exceptionRate}%`,
+      peerText: "Peer: 8%",
+      status: coreMetrics.exceptionRate > 12 ? "critical" : "good",
+    },
+    {
+      id: "cycle_time_days",
+      label: "Avg Cycle Time",
+      unlocked: coreMetrics.answeredFieldCodes.includes("ap_09"),
+      questionId: "q_kpi_01",
+      questionLabel: "Q9 (Cycle Time)",
+      val: `${coreMetrics.cycleTimeDays.toFixed(1)} days`,
+      peerText: "Peer: 3.8d",
+      status: coreMetrics.cycleTimeDays > 5 ? "warning" : "good",
+    },
+    {
+      id: "discount_capture_rate",
+      label: "Discount Capture",
+      unlocked: coreMetrics.answeredFieldCodes.includes("ap_14"),
+      questionId: "q_kpi_04",
+      questionLabel: "Q10 (Discounts)",
+      val: `${coreMetrics.discountCaptureRate}%`,
+      peerText: "Peer: 68%",
+      status: coreMetrics.discountCaptureRate < 55 ? "critical" : "good",
+    },
+    {
+      id: "vendor_query_rate",
+      label: "Vendor Queries",
+      unlocked: coreMetrics.answeredFieldCodes.includes("ap_17"),
+      questionId: "q_wf_02",
+      questionLabel: "Q11 (Queries)",
+      val: `${coreMetrics.vendorQueryRatePer1k} / 1k inv`,
+      peerText: "Peer: 35/1k",
+      status: coreMetrics.vendorQueryRatePer1k > 50 ? "warning" : "good",
+    },
+  ];
 
   return (
-    <div className="space-y-5">
-      {/* Top 3-Column Interview Layout */}
+    <div className="space-y-4">
+      {/* 1. PRESENTER DEMO COMMAND BAR */}
+      <div className="rounded-xl border border-slate-800 bg-[#0D1B2E] px-5 py-3.5 text-white shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="rounded bg-[#FFE600] px-2 py-0.5 text-[10px] font-extrabold tracking-wider text-slate-950 uppercase">
+                  Live CFO Discovery Session
+                </span>
+                <span className="text-xs font-bold text-white">
+                  {answeredTotal} of {questions.length} Questions Captured ({progressPct}%)
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-300">
+                Click any <strong className="text-[#FFE600]">Harlow Actual (Demo Baseline)</strong> card below to populate the answer instantly, or adjust the slider/input live with the CFO.
+              </p>
+            </div>
+          </div>
+
+          {/* Presenter Quick Actions */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => fillCategoryDemoAnswers(currentQuestion.categoryId)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800/90 px-3 py-1.5 text-xs font-bold text-slate-200 transition-colors hover:border-[#FFE600] hover:text-white"
+              title="Populate answers for the 2 questions in this category"
+            >
+              <Zap className="h-3.5 w-3.5 text-[#FFE600]" />
+              <span>Fill Category (2 Qs)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={loadCompletedDemoBaseline}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#FFE600] px-3.5 py-1.5 text-xs font-extrabold text-slate-950 shadow-2xs transition-opacity hover:opacity-90"
+              title="Populate all 12 interview answers and 4 SAP datasets in one click"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Auto-Complete All (12/12)</span>
+            </button>
+
+            {answeredTotal > 0 && (
+              <button
+                type="button"
+                onClick={clearAllInterviewAnswers}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-1.5 text-xs font-bold text-red-200 transition-colors hover:bg-red-900/60"
+                title="Reset all interview answers back to 0%"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>Reset Answers (0%)</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 2. MAIN 3-COLUMN INTERVIEW WORKSPACE */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
-        {/* LEFT COLUMN (3 cols): 8 Diagnostic Categories */}
+        {/* LEFT COLUMN (3 cols): 6 Executive Diagnostic Categories */}
         <div className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-xs lg:col-span-3">
           <div className="mb-3 border-b border-slate-100 pb-3">
             <span className="text-[11px] font-bold tracking-wider text-slate-400 uppercase">
-              Diagnostic Categories (8)
+              6 Diagnostic Pillars (12 Qs)
             </span>
             <h2 className="mt-0.5 text-sm font-bold text-slate-900">
-              Structured Question Bank
+              Structured CFO Question Bank
             </h2>
           </div>
 
@@ -204,30 +359,34 @@ export function InterviewScreen() {
                           ? "bg-[#FFE600] text-slate-950"
                           : pct === 100
                             ? "bg-emerald-100 text-emerald-800"
-                            : "bg-amber-100 text-amber-800"
+                            : pct > 0
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-slate-200 text-slate-600"
                       }`}
                     >
-                      {pct}%
+                      {answeredCount}/{catQs.length}
                     </span>
                   </div>
 
-                  <div className="mt-1.5 flex items-center justify-between text-[11px]">
-                    <span className={isSelected ? "text-slate-300" : "text-slate-500"}>
-                      {answeredCount} of {catQs.length} questions
-                    </span>
-                    <span
-                      className={`font-semibold ${
+                  <p
+                    className={`mt-1 line-clamp-1 text-[11px] ${
+                      isSelected ? "text-slate-300" : "text-slate-500"
+                    }`}
+                  >
+                    {cat.description}
+                  </p>
+
+                  <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-slate-200/30">
+                    <div
+                      className={`h-full transition-all duration-300 ${
                         pct === 100
-                          ? isSelected
-                            ? "text-emerald-300"
-                            : "text-emerald-700"
+                          ? "bg-emerald-400"
                           : isSelected
-                            ? "text-amber-300"
-                            : "text-amber-700"
+                            ? "bg-[#FFE600]"
+                            : "bg-amber-500"
                       }`}
-                    >
-                      {pct === 100 ? "Completed" : "In Progress"}
-                    </span>
+                      style={{ width: `${pct}%` }}
+                    />
                   </div>
 
                   {catWarnings.length > 0 && (
@@ -248,9 +407,9 @@ export function InterviewScreen() {
           </div>
         </div>
 
-        {/* CENTER COLUMN (6 cols): Structured Interview Workspace */}
+        {/* CENTER COLUMN (6 cols): Interactive Question Entry Workspace */}
         <div className="flex flex-col rounded-xl border border-slate-200 bg-white shadow-xs lg:col-span-6">
-          {/* AI Assistant Identity & Category Question Tabs */}
+          {/* Question Stepper Header */}
           <div className="border-b border-slate-200 bg-slate-50 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2.5">
@@ -260,52 +419,53 @@ export function InterviewScreen() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-900">
-                      EY AP Diagnostic Intelligence Assistant
+                      Question {currentIndex + 1} of {questions.length}
                     </span>
-                    <span className="rounded bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
-                      Live Model Sync
+                    <span
+                      className={`rounded px-2 py-0.5 text-[10px] font-extrabold uppercase ${
+                        currentQuestion.status === "answered"
+                          ? "bg-emerald-100 text-emerald-800"
+                          : "bg-amber-100 text-amber-900"
+                      }`}
+                    >
+                      {currentQuestion.status === "answered" ? "✓ Answered" : "Awaiting Input"}
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Question {currentIndex + 1} of {questions.length} · Field Code:{" "}
-                    <code className="font-mono font-bold text-slate-700">
-                      {currentQuestion.fieldCode}
-                    </code>
+                    Evidence Source: <strong className="text-slate-700">{currentQuestion.requiredEvidence}</strong>
                   </p>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setCopilotOpen((v) => !v)}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-bold text-slate-800 hover:bg-slate-100"
-              >
-                <MessageSquare className="h-3.5 w-3.5 text-slate-700" />
-                <span>{copilotOpen ? "Hide AI Copilot" : "Ask AI Copilot"}</span>
-              </button>
+              {currentQuestion.benchmarkHint && (
+                <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 font-mono text-[11px] font-bold text-slate-700">
+                  {currentQuestion.benchmarkHint}
+                </span>
+              )}
             </div>
 
             {/* Question Pills inside Current Category */}
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {categoryQuestions.map((q, idx) => {
+            <div className="mt-3 flex flex-wrap gap-2">
+              {categoryQuestions.map((q) => {
+                const globalIdx = questions.findIndex((item) => item.id === q.id);
                 const isCurr = q.id === currentQuestion.id;
                 return (
                   <button
                     key={q.id}
                     type="button"
                     onClick={() => handleSelectQuestion(q.id)}
-                    className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
                       isCurr
-                        ? "bg-slate-900 text-[#FFE600]"
+                        ? "bg-[#0D1B2E] text-[#FFE600] shadow-2xs"
                         : q.status === "answered"
-                          ? "border border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+                          ? "border border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
                           : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100"
                     }`}
                   >
-                    <span>Q{idx + 1}:</span>
-                    <span className="max-w-[160px] truncate">{q.title}</span>
+                    <span>Q{globalIdx + 1}:</span>
+                    <span>{q.title}</span>
                     {q.status === "answered" && (
-                      <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600" />
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
                     )}
                   </button>
                 );
@@ -316,197 +476,250 @@ export function InterviewScreen() {
           {/* Main Question Form Body */}
           <div className="flex-1 space-y-5 p-6">
             <div>
-              <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-bold text-slate-700 uppercase">
-                {currentQuestion.title}
-              </span>
-              <h3 className="mt-2 text-lg font-extrabold text-slate-900 leading-snug">
+              <h3 className="text-lg font-extrabold text-slate-900 leading-snug">
                 {currentQuestion.question}
               </h3>
               <p className="mt-2 rounded-lg border-l-4 border-[#FFE600] bg-slate-50 px-3.5 py-2.5 text-xs leading-relaxed text-slate-700">
-                <strong className="text-slate-900">Why this matters:</strong>{" "}
+                <strong className="text-slate-900">Why this matters to the CFO:</strong>{" "}
                 {currentQuestion.contextExplanation}
               </p>
             </div>
 
-            {/* Structured Input Control based on controlType */}
-            <div className="space-y-3">
-              <label className="block text-xs font-bold tracking-wider text-slate-700 uppercase">
-                Client Diagnostic Response{" "}
-                {currentQuestion.unit ? `(${currentQuestion.unit})` : ""}
-              </label>
+            {/* 1. NUMERIC / PERCENTAGE INTERACTIVE INPUT + SLIDER */}
+            {(currentQuestion.controlType === "number" ||
+              currentQuestion.controlType === "percentage" ||
+              currentQuestion.controlType === "currency") && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <label className="block text-xs font-extrabold tracking-wider text-slate-700 uppercase">
+                      Enter Client Value {currentQuestion.unit ? `(${currentQuestion.unit})` : ""}
+                    </label>
+                    <p className="text-[11px] text-slate-500">
+                      Type a value and press Enter, drag the sensitivity slider, or click a preset below:
+                    </p>
+                  </div>
 
-              {(currentQuestion.controlType === "number" ||
-                currentQuestion.controlType === "percentage" ||
-                currentQuestion.controlType === "currency") && (
-                <div className="flex items-center gap-3">
-                  <input
-                    type="number"
-                    step="any"
-                    value={draftAnswer}
-                    onChange={(e) => setDraftAnswer(e.target.value)}
-                    placeholder={`Enter ${currentQuestion.unit ?? "value"}…`}
-                    className="w-56 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-base font-extrabold text-slate-900 tabular-nums focus:border-slate-900 focus:ring-2 focus:ring-[#FFE600] focus:outline-none"
-                  />
-                  {currentQuestion.unit && (
-                    <span className="text-sm font-bold text-slate-600">
-                      {currentQuestion.unit}
+                  <div className="flex items-center gap-2.5">
+                    <input
+                      type="number"
+                      step="any"
+                      value={draftAnswer}
+                      onChange={(e) => {
+                        updateQuestionAnswer(
+                          currentQuestion.id,
+                          e.target.value,
+                          draftNotes || currentQuestion.demoNotes,
+                          { silent: true },
+                        );
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleConfirmAndNext();
+                        }
+                      }}
+                      placeholder={currentQuestion.demoAnswer ?? "0"}
+                      className="w-36 rounded-lg border-2 border-slate-300 bg-white px-3.5 py-2 text-right font-mono text-xl font-extrabold text-slate-900 tabular-nums focus:border-slate-900 focus:ring-2 focus:ring-[#FFE600] focus:outline-none"
+                    />
+                    {currentQuestion.unit && (
+                      <span className="rounded-md bg-slate-200/80 px-2.5 py-1.5 font-mono text-xs font-bold text-slate-800">
+                        {currentQuestion.unit}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Interactive Range Slider for Live Sensitivity */}
+                {currentQuestion.sliderRange && (
+                  <div className="pt-1">
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <Sliders className="h-3 w-3" />
+                        <span>Live What-If Sensitivity Slider</span>
+                      </span>
+                      <span className="font-mono">
+                        Range: {currentQuestion.sliderRange.min.toLocaleString()} –{" "}
+                        {currentQuestion.sliderRange.max.toLocaleString()}{" "}
+                        {currentQuestion.unit ?? ""}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={currentQuestion.sliderRange.min}
+                      max={currentQuestion.sliderRange.max}
+                      step={currentQuestion.sliderRange.step}
+                      value={
+                        draftAnswer !== "" && !Number.isNaN(Number(draftAnswer))
+                          ? Number(draftAnswer)
+                          : Number(currentQuestion.demoAnswer ?? currentQuestion.sliderRange.min)
+                      }
+                      onChange={(e) => {
+                        handleInstantApply(e.target.value, undefined, true);
+                      }}
+                      className="mt-2 h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-[#0D1B2E]"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 2. SELECT / OPERATING MODEL RADIO CARDS (Instant Apply on Click) */}
+            {(currentQuestion.controlType === "select" ||
+              currentQuestion.controlType === "yes-no") &&
+              currentQuestion.options && (
+                <div className="space-y-2.5">
+                  <label className="block text-xs font-extrabold tracking-wider text-slate-700 uppercase">
+                    Select Client Operating Reality (Clicks Apply Immediately)
+                  </label>
+                  {currentQuestion.options.map((opt) => {
+                    const isSelected = draftAnswer === opt;
+                    const isDemoRecommended = currentQuestion.demoAnswer === opt;
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => handleInstantApply(opt)}
+                        className={`flex w-full items-center justify-between gap-3 rounded-xl border p-3.5 text-left text-sm transition-all ${
+                          isSelected
+                            ? "border-slate-900 bg-[#0D1B2E] font-bold text-white shadow-sm ring-2 ring-[#FFE600]"
+                            : "border-slate-200 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span
+                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-xs ${
+                              isSelected
+                                ? "border-[#FFE600] bg-[#FFE600] font-extrabold text-slate-950"
+                                : "border-slate-300 bg-white"
+                            }`}
+                          >
+                            {isSelected ? "✓" : ""}
+                          </span>
+                          <span>{opt}</span>
+                        </div>
+                        {isDemoRecommended && (
+                          <span
+                            className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-extrabold uppercase ${
+                              isSelected
+                                ? "bg-[#FFE600] text-slate-950"
+                                : "bg-amber-100 text-amber-900"
+                            }`}
+                          >
+                            Harlow Demo Baseline
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+            {/* 3. ONE-CLICK SCENARIO PRESET CARDS */}
+            {currentQuestion.scenarioPresets &&
+              currentQuestion.scenarioPresets.length > 0 &&
+              currentQuestion.controlType !== "select" && (
+                <div className="space-y-2">
+                  <span className="block text-xs font-extrabold tracking-wider text-slate-700 uppercase">
+                    One-Click Demo Presets (Click to Populate &amp; Sync Model)
+                  </span>
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                    {currentQuestion.scenarioPresets.map((preset) => {
+                      const isActive = draftAnswer === preset.value;
+                      return (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          onClick={() => handleInstantApply(preset.value, preset.notes)}
+                          className={`flex flex-col justify-between rounded-xl border p-3 text-left transition-all ${
+                            isActive
+                              ? "border-slate-900 bg-[#0D1B2E] text-white shadow-sm ring-2 ring-[#FFE600]"
+                              : preset.isClientBaseline
+                                ? "border-amber-300 bg-amber-50/60 text-slate-900 hover:border-slate-900 hover:bg-amber-100/70"
+                                : "border-slate-200 bg-white text-slate-800 hover:border-slate-400 hover:bg-slate-50"
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between gap-1">
+                              <span
+                                className={`text-[10px] font-extrabold uppercase ${
+                                  isActive
+                                    ? "text-[#FFE600]"
+                                    : preset.isClientBaseline
+                                      ? "text-amber-900"
+                                      : "text-slate-500"
+                                }`}
+                              >
+                                {preset.label}
+                              </span>
+                              {isActive && (
+                                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-[#FFE600]" />
+                              )}
+                            </div>
+                            <p className="mt-1 font-mono text-lg font-extrabold tabular-nums">
+                              {Number(preset.value).toLocaleString()}
+                              {currentQuestion.unit === "%" ? "%" : ` ${currentQuestion.unit ?? ""}`}
+                            </p>
+                          </div>
+                          <p
+                            className={`mt-1.5 text-[11px] leading-snug ${
+                              isActive ? "text-slate-300" : "text-slate-600"
+                            }`}
+                          >
+                            {preset.subtitle}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+            {/* 4. LIVE DIAGNOSTIC SIGNAL & CAUSAL IMPACT PREVIEW (Appears once answered!) */}
+            {currentQuestion.status === "answered" && currentQuestion.impactPreview && (
+              <div className="animate-message-in rounded-xl border border-emerald-300 bg-emerald-50/70 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-extrabold tracking-wider text-emerald-950 uppercase">
+                    <Sparkles className="h-4 w-4 text-emerald-700" />
+                    <span>Live Diagnostic Signal Captured</span>
+                  </span>
+                  {currentQuestion.valueUnlockedUsd && (
+                    <span className="rounded-md bg-emerald-800 px-2.5 py-0.5 font-mono text-xs font-bold text-[#FFE600]">
+                      +${(currentQuestion.valueUnlockedUsd / 1000).toFixed(1)}k/yr Value Lever Linked
                     </span>
                   )}
                 </div>
-              )}
-
-              {(currentQuestion.controlType === "select" ||
-                currentQuestion.controlType === "yes-no") &&
-                currentQuestion.options && (
-                  <div className="space-y-2">
-                    {currentQuestion.options.map((opt) => (
-                      <label
-                        key={opt}
-                        className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm transition-colors ${
-                          draftAnswer === opt
-                            ? "border-slate-900 bg-amber-50/50 font-bold text-slate-900"
-                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                        }`}
-                      >
-                        <input
-                          type="radio"
-                          name={currentQuestion.id}
-                          checked={draftAnswer === opt}
-                          onChange={() => setDraftAnswer(opt)}
-                          className="h-4 w-4 accent-slate-900"
-                        />
-                        <span>{opt}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-
-              {(currentQuestion.controlType === "text" ||
-                currentQuestion.controlType === "multi-select") && (
-                <textarea
-                  rows={3}
-                  value={draftAnswer}
-                  onChange={(e) => setDraftAnswer(e.target.value)}
-                  placeholder="Enter structured response…"
-                  className="w-full rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-900 focus:border-slate-900 focus:ring-2 focus:ring-[#FFE600] focus:outline-none"
-                />
-              )}
-
-              {/* Suggested Benchmarks / Preset Answers */}
-              <div>
-                <span className="text-[11px] font-semibold text-slate-500">
-                  Suggested / Demo Scenarios (Click to populate):
-                </span>
-                <div className="mt-1.5 flex flex-wrap gap-2">
-                  {currentQuestion.suggestedAnswers.map((sug) => (
-                    <button
-                      key={sug}
-                      type="button"
-                      onClick={() => setDraftAnswer(sug)}
-                      className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-800 transition-colors hover:border-slate-900 hover:bg-[#FFE600]"
-                    >
-                      {sug}
-                      {currentQuestion.unit === "%" ? "%" : ""}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Consultant Notes & Follow-Up */}
-              <div className="pt-2">
-                <label className="block text-xs font-bold tracking-wider text-slate-600 uppercase">
-                  Consultant Field Notes &amp; Follow-up Probe
-                </label>
-                <p className="mt-0.5 text-xs text-slate-500 italic">
-                  Recommended follow-up: &ldquo;{currentQuestion.followUpPrompt}&rdquo;
+                <p className="mt-1.5 text-xs leading-relaxed font-medium text-slate-800">
+                  {currentQuestion.impactPreview}
                 </p>
-                <textarea
-                  rows={2}
-                  value={draftNotes}
-                  onChange={(e) => setDraftNotes(e.target.value)}
-                  placeholder="Document interviewee context, root-cause caveats, or plant-specific nuances…"
-                  className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-800 focus:border-slate-900 focus:bg-white focus:outline-none"
-                />
-              </div>
-            </div>
-
-            {/* Attach Supporting Evidence Datasets */}
-            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3.5">
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                  <Paperclip className="h-3.5 w-3.5 text-slate-600" />
-                  <span>Linked Supporting Evidence</span>
-                </span>
-                <span className="text-[11px] text-slate-500">
-                  Required: {currentQuestion.requiredEvidence}
-                </span>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {datasets.map((ds) => {
-                  const attached = currentQuestion.attachedDatasetIds.includes(ds.id);
-                  return (
-                    <button
-                      key={ds.id}
-                      type="button"
-                      onClick={() => toggleDatasetOnQuestion(currentQuestion.id, ds.id)}
-                      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors ${
-                        attached
-                          ? "border-slate-900 bg-slate-900 text-[#FFE600]"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-400"
-                      }`}
-                    >
-                      <Database className="h-3 w-3" />
-                      <span>{ds.datasetType}</span>
-                      {attached && <span>✓</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Optional Conversational AI Copilot Drawer */}
-            {copilotOpen && (
-              <div className="rounded-lg border border-slate-300 bg-slate-900 p-4 text-white">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#FFE600]">
-                    Diagnostic AI Copilot (Context-Grounded)
-                  </span>
-                  <span className="text-[10px] text-slate-400">
-                    Active Question: {currentQuestion.fieldCode}
-                  </span>
-                </div>
-                <div className="max-h-40 space-y-2 overflow-y-auto rounded bg-slate-950/70 p-3 text-xs">
-                  {copilotLog.map((m, i) => (
-                    <div
-                      key={i}
-                      className={
-                        m.role === "user"
-                          ? "text-right font-semibold text-[#FFE600]"
-                          : "text-slate-200"
-                      }
-                    >
-                      {m.text}
-                    </div>
-                  ))}
-                </div>
-                <form onSubmit={handleCopilotAsk} className="mt-2.5 flex gap-2">
-                  <input
-                    type="text"
-                    value={copilotInput}
-                    onChange={(e) => setCopilotInput(e.target.value)}
-                    placeholder="Ask how this metric impacts benchmarks or root causes…"
-                    className="flex-1 rounded border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-white placeholder:text-slate-400 focus:border-[#FFE600] focus:outline-none"
-                  />
-                  <button
-                    type="submit"
-                    className="inline-flex items-center gap-1 rounded bg-[#FFE600] px-3 py-1.5 text-xs font-bold text-slate-950"
-                  >
-                    <Send className="h-3 w-3" />
-                    <span>Ask</span>
-                  </button>
-                </form>
               </div>
             )}
+
+            {/* 5. CONSULTANT FIELD NOTES & FOLLOW-UP PROBE */}
+            <div className="pt-1">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold tracking-wider text-slate-600 uppercase">
+                  Consultant Field Notes &amp; CFO Discussion Probe
+                </label>
+                <span className="text-[11px] text-slate-500 italic">
+                  Probe: &ldquo;{currentQuestion.followUpPrompt}&rdquo;
+                </span>
+              </div>
+              <textarea
+                rows={2}
+                value={draftNotes}
+                onChange={(e) => {
+                  updateQuestionAnswer(
+                    currentQuestion.id,
+                    draftAnswer,
+                    e.target.value,
+                    { silent: true },
+                  );
+                }}
+                placeholder="Document plant-specific observations or CFO commentary…"
+                className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-50 p-2.5 text-xs text-slate-800 focus:border-slate-900 focus:bg-white focus:outline-none"
+              />
+            </div>
           </div>
 
           {/* Question Action Footer */}
@@ -518,32 +731,33 @@ export function InterviewScreen() {
               className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-40"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Previous Question</span>
+              <span>Previous</span>
             </button>
 
             <div className="flex items-center gap-2">
+              {currentQuestion.status === "answered" && (
+                <button
+                  type="button"
+                  onClick={handleClearCurrentAnswer}
+                  className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>Clear Answer</span>
+                </button>
+              )}
+
               <button
                 type="button"
-                onClick={() => skipQuestion(currentQuestion.id)}
-                className="inline-flex items-center gap-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                onClick={handleConfirmAndNext}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[#0D1B2E] px-4 py-2 text-xs font-extrabold text-[#FFE600] shadow-xs transition-colors hover:bg-slate-800"
               >
-                <SkipForward className="h-3.5 w-3.5" />
-                <span>Skip</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveCurrent}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-900 bg-white px-3.5 py-2 text-xs font-bold text-slate-900 hover:bg-slate-100"
-              >
-                <Save className="h-3.5 w-3.5" />
-                <span>Save Answer</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleNextQuestion}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-[#FFE600] px-4 py-2 text-xs font-extrabold text-slate-950 hover:opacity-90"
-              >
-                <span>Save &amp; Next Question</span>
+                <span>
+                  {draftAnswer.trim()
+                    ? currentIndex < questions.length - 1
+                      ? "Confirm & Next Question"
+                      : "Complete Interview & Verify ERP Data"
+                    : "Apply Demo Baseline & Next"}
+                </span>
                 <ArrowRight className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -552,111 +766,141 @@ export function InterviewScreen() {
 
         {/* RIGHT COLUMN (3 cols): Live Diagnostic Telemetry */}
         <div className="flex flex-col gap-4 lg:col-span-3">
-          {/* Captured KPIs (Click any KPI for details) */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
-            <h3 className="text-xs font-bold tracking-wider text-slate-500 uppercase">
-              Live Extracted KPIs
-            </h3>
-            <div className="mt-2 divide-y divide-slate-100 text-xs">
-              {[
-                {
-                  id: "invoices_per_fte" as const,
-                  label: "Invoices / FTE",
-                  val: `${coreMetrics.invoicesPerFte.toLocaleString()}/yr`,
-                },
-                {
-                  id: "po_backed_rate" as const,
-                  label: "PO-Backed Invoices",
-                  val: `${coreMetrics.poBackedRate}%`,
-                },
-                {
-                  id: "touchless_rate" as const,
-                  label: "Touchless Rate",
-                  val: `${coreMetrics.touchlessRate}%`,
-                },
-                {
-                  id: "exception_rate" as const,
-                  label: "Exception Rate",
-                  val: `${coreMetrics.exceptionRate}%`,
-                },
-                {
-                  id: "cycle_time_days" as const,
-                  label: "Cycle Time",
-                  val: `${coreMetrics.cycleTimeDays.toFixed(1)} days`,
-                },
-                {
-                  id: "on_time_payment_rate" as const,
-                  label: "On-Time Payment",
-                  val: `${coreMetrics.onTimePaymentRate}%`,
-                },
-                {
-                  id: "discount_capture_rate" as const,
-                  label: "Discount Capture",
-                  val: `${coreMetrics.discountCaptureRate}%`,
-                },
-                {
-                  id: "vendor_query_rate" as const,
-                  label: "Vendor Queries",
-                  val: `${coreMetrics.vendorQueryRatePer1k} / 1k inv`,
-                },
-              ].map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => openKpiDrilldown(item.id)}
-                  className="flex w-full items-center justify-between py-2 text-left transition-colors hover:bg-slate-50"
-                >
-                  <span className="font-medium text-slate-700">{item.label}</span>
-                  <span className="font-mono font-bold text-slate-900 underline decoration-[#FFE600] decoration-2 tabular-nums">
-                    {item.val}
-                  </span>
-                </button>
-              ))}
+          {/* 1. Live Value Case Counter */}
+          <div className="rounded-xl border border-slate-800 bg-[#0D1B2E] p-4 text-white shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-slate-300 uppercase">
+                <TrendingUp className="h-3.5 w-3.5 text-[#FFE600]" />
+                <span>Live Value Case Unlocked</span>
+              </span>
+              <span className="rounded bg-slate-800 px-2 py-0.5 font-mono text-[10px] font-bold text-emerald-400">
+                {progressPct}% Modelled
+              </span>
+            </div>
+            <p className="mt-2 font-mono text-2xl font-extrabold text-[#FFE600] tabular-nums">
+              ${unlockedValueUsd.toLocaleString()}
+              <span className="text-xs font-normal text-slate-400"> / yr</span>
+            </p>
+            <p className="mt-0.5 text-[11px] text-slate-300">
+              {answeredTotal === 0
+                ? "Enter answers to quantify annual savings across 8 levers"
+                : `Plus $${(valueSummary.oneTimeWorkingCapitalReleaseUsd / 1000).toFixed(0)}k 1-time working capital cash release`}
+            </p>
+            <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-800">
+              <div
+                className="h-full bg-[#FFE600] transition-all duration-300"
+                style={{ width: `${progressPct}%` }}
+              />
             </div>
           </div>
 
-          {/* Identified Risks & Contradiction Alerts */}
+          {/* 2. Live Extracted KPIs (Lights up progressively as questions are answered) */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold tracking-wider text-slate-500 uppercase">
+                Live Extracted KPIs
+              </h3>
+              <span className="font-mono text-[10px] font-semibold text-slate-400">
+                {liveKpiRows.filter((r) => r.unlocked).length}/8 Active
+              </span>
+            </div>
+            <div className="mt-2 divide-y divide-slate-100 text-xs">
+              {liveKpiRows.map((item) =>
+                item.unlocked ? (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => openKpiDrilldown(item.id)}
+                    className="flex w-full items-center justify-between py-2 text-left transition-colors hover:bg-slate-50"
+                  >
+                    <div>
+                      <span className="font-bold text-slate-800">{item.label}</span>
+                      <span className="ml-1.5 text-[10px] text-slate-400">
+                        ({item.peerText})
+                      </span>
+                    </div>
+                    <span
+                      className={`rounded px-2 py-0.5 font-mono text-xs font-extrabold tabular-nums ${
+                        item.status === "critical"
+                          ? "bg-red-50 text-red-700"
+                          : item.status === "warning"
+                            ? "bg-amber-50 text-amber-800"
+                            : "bg-emerald-50 text-emerald-700"
+                      }`}
+                    >
+                      {item.val}
+                    </span>
+                  </button>
+                ) : (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleSelectQuestion(item.questionId)}
+                    className="flex w-full items-center justify-between py-2 text-left text-slate-400 transition-colors hover:text-slate-700"
+                  >
+                    <span className="font-medium">{item.label}</span>
+                    <span className="inline-flex items-center gap-1 rounded border border-dashed border-slate-300 px-2 py-0.5 font-mono text-[10px] font-semibold text-slate-500">
+                      <Clock className="h-2.5 w-2.5" />
+                      <span>Answer {item.questionLabel}</span>
+                    </span>
+                  </button>
+                ),
+              )}
+            </div>
+          </div>
+
+          {/* 3. Identified Risks & Contradiction Alerts */}
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs">
             <h3 className="flex items-center gap-1.5 text-xs font-bold tracking-wider text-amber-800 uppercase">
               <ShieldAlert className="h-4 w-4 text-amber-600" />
-              <span>Validation &amp; Control Alerts ({validationWarnings.length})</span>
+              <span>Live Diagnostic Alerts ({validationWarnings.length})</span>
             </h3>
-            <div className="mt-2.5 space-y-2">
-              {validationWarnings.map((w, idx) => (
-                <div
-                  key={idx}
-                  className="rounded-lg border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-slate-800"
-                >
-                  {w.message}
-                </div>
-              ))}
-            </div>
+            {validationWarnings.length === 0 ? (
+              <p className="mt-2 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
+                No risks triggered yet. As you enter client responses for PO split, exceptions, discounts, and controls, real-time audit alerts will appear here.
+              </p>
+            ) : (
+              <div className="mt-2.5 space-y-2">
+                {validationWarnings.map((w, idx) => (
+                  <div
+                    key={idx}
+                    className={`rounded-lg border p-2.5 text-xs ${
+                      w.severity === "critical"
+                        ? "border-red-200 bg-red-50/70 text-red-950"
+                        : "border-amber-200 bg-amber-50/70 text-slate-800"
+                    }`}
+                  >
+                    {w.message}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Active Question Causal Links */}
-          <div className="rounded-xl border border-slate-800 bg-[#0D1B2E] p-4 text-white shadow-xs space-y-2.5">
-            <h3 className="flex items-center gap-1.5 text-xs font-bold tracking-wider text-[#FFE600] uppercase">
-              <Sparkles className="h-4 w-4" />
-              <span>Active Question Traceability</span>
+          {/* 4. Active Question Causal Traceability */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2">
+            <h3 className="flex items-center gap-1.5 text-xs font-bold tracking-wider text-slate-700 uppercase">
+              <Sparkles className="h-3.5 w-3.5 text-slate-900" />
+              <span>Downstream Story Linkage</span>
             </h3>
-            <div className="space-y-1.5 text-xs text-slate-300">
+            <div className="space-y-1.5 text-xs text-slate-600">
               {linkedStagesForQuestion.length > 0 && (
                 <p>
-                  <strong className="text-white">Process Stages:</strong>{" "}
+                  <strong className="text-slate-900">Impacted Process Stages:</strong>{" "}
                   {linkedStagesForQuestion.map((s) => s.shortName).join(", ")}
                 </p>
               )}
               {linkedRcsForQuestion.length > 0 && (
                 <div className="space-y-1 pt-1">
-                  <span className="font-bold text-white">Linked Root Causes:</span>
+                  <span className="font-bold text-slate-900">Linked Root Causes:</span>
                   {linkedRcsForQuestion.map((rc) => (
                     <button
                       key={rc.id}
                       type="button"
                       onClick={() => navigateTo("root-causes")}
-                      className="block w-full rounded bg-slate-800/90 px-2.5 py-1.5 text-left text-[11px] text-slate-200 hover:bg-slate-700"
+                      className="block w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-left text-[11px] font-semibold text-slate-800 hover:border-slate-900"
                     >
-                      <span className="font-mono font-bold text-[#FFE600]">{rc.code}:</span>{" "}
+                      <span className="font-mono font-bold text-slate-950">{rc.code}:</span>{" "}
                       {rc.title}
                     </button>
                   ))}

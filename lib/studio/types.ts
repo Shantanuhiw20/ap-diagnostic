@@ -45,6 +45,14 @@ export type QuestionControlType =
   | "text"
   | "date";
 
+export interface QuestionScenarioPreset {
+  label: string;
+  value: string;
+  subtitle: string;
+  notes?: string;
+  isClientBaseline?: boolean;
+}
+
 export interface InterviewQuestion {
   id: string;
   fieldCode: string;
@@ -56,6 +64,15 @@ export interface InterviewQuestion {
   unit?: string;
   options?: string[];
   suggestedAnswers: string[];
+  scenarioPresets?: QuestionScenarioPreset[];
+  sliderRange?: { min: number; max: number; step: number };
+  benchmarkHint?: string;
+  impactPreview?: string;
+  valueUnlockedUsd?: number;
+  demoAnswer?: string;
+  demoNumericValue?: number;
+  demoNotes?: string;
+  demoAttachedDatasetIds?: string[];
   followUpPrompt: string;
   requiredEvidence: string;
   linkedKpiId?: KpiId;

@@ -21,6 +21,10 @@ import {
   ShieldAlert,
   TrendingUp,
   Layers,
+  MessageSquareText,
+  Database,
+  Sparkles,
+  Clock,
 } from "lucide-react";
 import { useStudio } from "@/lib/studio/store";
 import type { KpiId, StudioSectionId } from "@/lib/studio/types";
@@ -52,14 +56,23 @@ export function OverviewScreen() {
   const {
     clientName,
     coreMetrics,
+    datasets,
     valueSummary,
     navigateTo,
+    setActiveQuestion,
+    loadCompletedDemoBaseline,
     openKpiDrilldown,
   } = useStudio();
+
+  const hasAnyInputs = coreMetrics.answeredCount > 0 || datasets.length > 0;
+  const isAns = (code: string) =>
+    datasets.length > 0 || coreMetrics.answeredFieldCodes.includes(code);
 
   const kpiCards: Array<{
     id: KpiId;
     label: string;
+    unlocked: boolean;
+    questionId: string;
     value: string;
     subtext: string;
     status: "critical" | "warning" | "neutral" | "good";
@@ -67,6 +80,8 @@ export function OverviewScreen() {
     {
       id: "invoices_per_fte",
       label: "Annual Invoice Volume",
+      unlocked: isAns("ap_03"),
+      questionId: "q_vol_01",
       value: `${coreMetrics.annualInvoices.toLocaleString()}`,
       subtext: `${coreMetrics.monthlyInvoices.toLocaleString()}/mo · ${(coreMetrics.invoicesPerFte / 1000).toFixed(1)}k/FTE vs 36k Peer`,
       status: "neutral",
@@ -74,6 +89,8 @@ export function OverviewScreen() {
     {
       id: "po_backed_rate",
       label: "PO-Backed Invoice Rate",
+      unlocked: isAns("ap_04"),
+      questionId: "q_vol_02",
       value: `${coreMetrics.poBackedRate}%`,
       subtext: `Peer: 85% · ${100 - coreMetrics.poBackedRate}% Non-PO volume`,
       status: coreMetrics.poBackedRate < 75 ? "critical" : "good",
@@ -81,6 +98,8 @@ export function OverviewScreen() {
     {
       id: "touchless_rate",
       label: "Touchless Processing Rate",
+      unlocked: isAns("ap_touchless"),
+      questionId: "q_tech_02",
       value: `${coreMetrics.touchlessRate}%`,
       subtext: `Peer: 65% · Best-in-Class: 88%`,
       status: coreMetrics.touchlessRate < 50 ? "critical" : "warning",
@@ -88,6 +107,8 @@ export function OverviewScreen() {
     {
       id: "exception_rate",
       label: "Invoice Exception Rate",
+      unlocked: isAns("ap_08"),
+      questionId: "q_proc_02",
       value: `${coreMetrics.exceptionRate}%`,
       subtext: `Peer: 8% · ${Math.round(coreMetrics.annualInvoices * (coreMetrics.exceptionRate / 100)).toLocaleString()} reworks/yr`,
       status: coreMetrics.exceptionRate > 12 ? "critical" : "good",
@@ -95,6 +116,8 @@ export function OverviewScreen() {
     {
       id: "cost_per_invoice",
       label: "Unit Cost per Invoice",
+      unlocked: isAns("ap_19") || isAns("ap_03"),
+      questionId: "q_wf_01",
       value: `$${coreMetrics.costPerInvoice.toFixed(2)}`,
       subtext: `Peer: $5.20 · Best-in-Class: $2.40`,
       status: coreMetrics.costPerInvoice > 8 ? "critical" : "warning",
@@ -102,23 +125,29 @@ export function OverviewScreen() {
     {
       id: "cycle_time_days",
       label: "Avg Processing Cycle Time",
+      unlocked: isAns("ap_09"),
+      questionId: "q_kpi_01",
       value: `${coreMetrics.cycleTimeDays.toFixed(1)} days`,
       subtext: `PO: 2.4d · Non-PO: 9.8d · Peer: 3.8d`,
       status: coreMetrics.cycleTimeDays > 5 ? "warning" : "good",
     },
     {
-      id: "on_time_payment_rate",
-      label: "On-Time Payment Rate",
-      value: `${coreMetrics.onTimePaymentRate}%`,
-      subtext: `DPO: ${coreMetrics.dpoDays}d · Discount Capture: ${coreMetrics.discountCaptureRate}%`,
-      status: coreMetrics.onTimePaymentRate < 85 ? "warning" : "good",
+      id: "discount_capture_rate",
+      label: "Discount Capture Rate",
+      unlocked: isAns("ap_14"),
+      questionId: "q_kpi_04",
+      value: `${coreMetrics.discountCaptureRate}%`,
+      subtext: `Peer: 68% · $173.6k/yr forfeited in queues`,
+      status: coreMetrics.discountCaptureRate < 55 ? "critical" : "good",
     },
     {
-      id: "automation_maturity",
-      label: "AP Process Maturity",
-      value: `${coreMetrics.avgMaturity.toFixed(1)} / 5.0`,
-      subtext: `Peer: 3.6 · Target: 4.1 / 5.0`,
-      status: "warning",
+      id: "vendor_query_rate",
+      label: "Vendor Inquiry Load",
+      unlocked: isAns("ap_17"),
+      questionId: "q_wf_02",
+      value: `${coreMetrics.monthlyQueries.toLocaleString()}/mo`,
+      subtext: `${coreMetrics.vendorQueryRatePer1k}/1k inv vs 35 Peer · 1.5 FTEs`,
+      status: coreMetrics.vendorQueryRatePer1k > 50 ? "warning" : "good",
     },
   ];
 
@@ -202,6 +231,62 @@ export function OverviewScreen() {
 
   return (
     <div className="space-y-5">
+      {/* LIVE DIAGNOSTIC LAUNCHPAD BANNER WHEN INTAKE IS INCOMPLETE */}
+      {coreMetrics.answeredCount < coreMetrics.totalQuestions && (
+        <div className="rounded-xl border-2 border-[#FFE600] bg-amber-50/90 p-4 text-slate-900 shadow-xs">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="rounded bg-[#0D1B2E] px-2 py-0.5 text-[10px] font-extrabold tracking-wider text-[#FFE600] uppercase">
+                  {hasAnyInputs ? "Diagnostic Intake In Progress" : "Step 1 · Ready for Live CFO Demo"}
+                </span>
+                <span className="text-xs font-extrabold text-slate-900">
+                  {coreMetrics.answeredCount}/{coreMetrics.totalQuestions} Interview Questions Answered · {datasets.length}/4 SAP Extracts Ingested
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-700">
+                {hasAnyInputs
+                  ? "KPIs below are updating live from your captured interview responses. Continue the interview or ingest the SAP extracts to unlock the full diagnostic."
+                  : "Start the live CFO Diagnostic Interview to capture client baselines question-by-question, or click Auto-Load Full Demo if you wish to jump directly to the completed executive state."}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => navigateTo("interview")}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-[#0D1B2E] px-4 py-2 text-xs font-extrabold text-[#FFE600] shadow-xs hover:bg-slate-800"
+              >
+                <MessageSquareText className="h-3.5 w-3.5" />
+                <span>
+                  {coreMetrics.answeredCount === 0
+                    ? "Start Live CFO Interview (0/12) →"
+                    : `Resume Interview (${coreMetrics.answeredCount}/${coreMetrics.totalQuestions}) →`}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => navigateTo("data")}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-bold text-slate-800 hover:bg-slate-100"
+              >
+                <Database className="h-3.5 w-3.5" />
+                <span>Ingest SAP Extracts ({datasets.length}/4)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={loadCompletedDemoBaseline}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400 bg-amber-100 px-3 py-2 text-xs font-bold text-slate-900 hover:bg-amber-200"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                <span>Auto-Load Full Demo (100%)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 1. COMPACT EXECUTIVE SCOPE & VALUE COMMAND STRIP */}
       <div className="rounded-xl border border-slate-800 bg-[#0D1B2E] px-5 py-4 text-white shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -218,68 +303,81 @@ export function OverviewScreen() {
               Baseline Scope:{" "}
               <strong className="font-mono text-slate-200">$68.4M</strong> Annual AP Spend ·{" "}
               <strong className="font-mono text-slate-200">
-                {coreMetrics.annualInvoices.toLocaleString()}
+                {hasAnyInputs ? coreMetrics.annualInvoices.toLocaleString() : "Awaiting Intake"}
               </strong>{" "}
               Invoices/yr ·{" "}
-              <strong className="font-mono text-slate-200">{coreMetrics.ftes}</strong> AP FTEs
+              <strong className="font-mono text-slate-200">
+                {hasAnyInputs ? coreMetrics.ftes : "—"}
+              </strong>{" "}
+              AP FTEs
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4 tabular-nums">
             <button
               type="button"
-              onClick={() => navigateTo("value")}
+              onClick={() => navigateTo(hasAnyInputs ? "value" : "interview")}
               className="rounded-lg border border-slate-700/80 bg-slate-900/90 px-3.5 py-2 text-left transition-colors hover:border-slate-500"
             >
               <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
                 Gross Value ({valueSummary.scenario})
               </p>
               <p className="mt-0.5 font-mono text-base font-extrabold text-[#FFE600]">
-                ${(valueSummary.grossAnnualBenefitUsd / 1000).toFixed(0)}k
-                <span className="text-[11px] font-normal text-slate-400">/yr</span>
+                {hasAnyInputs
+                  ? `$${(valueSummary.grossAnnualBenefitUsd / 1000).toFixed(0)}k/yr`
+                  : "Pending Input"}
               </p>
             </button>
 
             <button
               type="button"
-              onClick={() => navigateTo("value")}
+              onClick={() => navigateTo(hasAnyInputs ? "value" : "interview")}
               className="rounded-lg border border-slate-700/80 bg-slate-900/90 px-3.5 py-2 text-left transition-colors hover:border-slate-500"
             >
               <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
                 Net Run-Rate
               </p>
               <p className="mt-0.5 font-mono text-base font-extrabold text-emerald-400">
-                ${(valueSummary.netAnnualBenefitUsd / 1000).toFixed(0)}k
-                <span className="text-[11px] font-normal text-slate-400">/yr</span>
+                {hasAnyInputs
+                  ? `$${(valueSummary.netAnnualBenefitUsd / 1000).toFixed(0)}k/yr`
+                  : "Pending Input"}
               </p>
             </button>
 
             <button
               type="button"
-              onClick={() => navigateTo("value")}
+              onClick={() => navigateTo(hasAnyInputs ? "value" : "interview")}
               className="rounded-lg border border-slate-700/80 bg-slate-900/90 px-3.5 py-2 text-left transition-colors hover:border-slate-500"
             >
               <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
                 1-Time Cash Release
               </p>
               <p className="mt-0.5 font-mono text-base font-extrabold text-sky-300">
-                ${(valueSummary.oneTimeWorkingCapitalReleaseUsd / 1000).toFixed(0)}k
+                {hasAnyInputs
+                  ? `$${(valueSummary.oneTimeWorkingCapitalReleaseUsd / 1000).toFixed(0)}k`
+                  : "Pending Input"}
               </p>
             </button>
 
             <button
               type="button"
-              onClick={() => navigateTo("roadmap")}
+              onClick={() => navigateTo(hasAnyInputs ? "roadmap" : "interview")}
               className="rounded-lg border border-slate-700/80 bg-slate-900/90 px-3.5 py-2 text-left transition-colors hover:border-slate-500"
             >
               <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
                 Payback &amp; 3Y ROI
               </p>
               <p className="mt-0.5 font-mono text-base font-extrabold text-white">
-                {valueSummary.paybackMonths}m{" "}
-                <span className="text-xs font-bold text-emerald-400">
-                  ({valueSummary.roiPct}%)
-                </span>
+                {hasAnyInputs ? (
+                  <>
+                    {valueSummary.paybackMonths}m{" "}
+                    <span className="text-xs font-bold text-emerald-400">
+                      ({valueSummary.roiPct}%)
+                    </span>
+                  </>
+                ) : (
+                  "Pending Input"
+                )}
               </p>
             </button>
           </div>
@@ -289,6 +387,36 @@ export function OverviewScreen() {
       {/* 2. 8 CORE OPERATIONAL KPI CARDS (4x2 Enterprise Grid) */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {kpiCards.map((card) => {
+          if (!card.unlocked) {
+            return (
+              <button
+                key={card.label}
+                type="button"
+                onClick={() => {
+                  setActiveQuestion(card.questionId);
+                  navigateTo("interview");
+                }}
+                className="group flex flex-col justify-between rounded-xl border border-dashed border-slate-300 bg-white/80 p-4 text-left transition-all hover:border-slate-900 hover:bg-white"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-xs font-semibold text-slate-500">
+                    {card.label}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
+                    <Clock className="h-2.5 w-2.5" />
+                    Awaiting Input
+                  </span>
+                </div>
+                <p className="mt-2 font-mono text-lg font-bold text-slate-400">
+                  — / Pending
+                </p>
+                <p className="mt-1 text-[11px] font-semibold text-slate-600 group-hover:text-slate-950">
+                  Click to capture in Interview →
+                </p>
+              </button>
+            );
+          }
+
           const borderAccent =
             card.status === "critical"
               ? "border-t-2 border-t-red-500"
