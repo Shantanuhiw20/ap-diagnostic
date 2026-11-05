@@ -1,30 +1,28 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f6f6f4;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
 
-  /* EY palette. Yellow is an accent only, never a body-text background or
-     text colour on white, see context/skills/frontend-design/SKILL.md
-     and context/sample-data/design.md */
+  /* Enterprise SaaS & EY Finance Transformation Palette */
   --ey-yellow: #ffe600;
-  --ey-black: #000000;
+  --ey-black: #0f172a;
   --ey-white: #ffffff;
   --ey-navy: #0d1b2e;
-  --ey-charcoal: #2e2e38;
+  --ey-charcoal: #1e293b;
   --ey-teal: #0f8b8d;
-  --ey-grey-700: #4a4a55;
-  --ey-grey-400: #8e8e97;
-  --ey-grey-200: #d6d6da;
-  --ey-grey-100: #f6f6f4;
-  --ey-grey-light: #f2f2f2;
+  --ey-grey-700: #334155;
+  --ey-grey-400: #64748b;
+  --ey-grey-200: #e2e8f0;
+  --ey-grey-100: #f1f5f9;
+  --ey-grey-light: #f8fafc;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-body);
-  --font-display: var(--font-display);
+  --font-display: var(--font-body);
 
   --color-ey-yellow: var(--ey-yellow);
   --color-ey-black: var(--ey-black);
@@ -42,11 +40,39 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-body), "Segoe UI", sans-serif;
+  font-family: var(--font-body), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .print-unfreeze {
+    height: auto !important;
+    overflow: visible !important;
+  }
+}
+
+/* Subtle enterprise scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.35);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.55);
 }
 
 /* Motion: one deliberate moment per element, sharp and short, not

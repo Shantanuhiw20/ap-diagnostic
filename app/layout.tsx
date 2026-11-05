@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
-import { Archivo, Public_Sans } from "next/font/google";
+import { Inter, Archivo } from "next/font/google";
 import "./globals.css";
+
+const inter = Inter({
+  variable: "--font-body",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+});
 
 const archivo = Archivo({
   variable: "--font-display",
@@ -8,24 +14,22 @@ const archivo = Archivo({
   weight: ["700", "800", "900"],
 });
 
-const publicSans = Public_Sans({
-  variable: "--font-body",
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-});
-
 export const metadata: Metadata = {
-  title: "EY FIN OS",
-  description: "EY finance operations AI accelerator",
+  title: "AP Diagnostic Studio — Enterprise Finance Transformation Intelligence",
+  description:
+    "Intelligent Accounts Payable Transformation Platform for Process Diagnostics, Operational Benchmarking, Root Cause Analysis, Automation & AI Opportunity Assessment, Value Realization, and Executive Reporting.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${archivo.variable} ${publicSans.variable} h-full antialiased`}
+      className={`${inter.variable} ${archivo.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col bg-[#F8FAFC] text-[#0F172A]">
+        {children}
+      </body>
     </html>
   );
 }
+
