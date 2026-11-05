@@ -1,13 +1,12 @@
 {
-  "name": "ey-fin-os",
+  "name": "ey-ap-diagnostic",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint",
-    "sync-context": "node scripts/sync-context.js"
+    "lint": "eslint"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.57",

@@ -2,7 +2,7 @@
 // files' quoted fields with embedded commas, no external dependency needed
 // for a ~22-row file.
 
-function parseCsvLine(line: string): string[] {
+export function parseCsvLine(line: string): string[] {
   const fields: string[] = [];
   let current = "";
   let inQuotes = false;

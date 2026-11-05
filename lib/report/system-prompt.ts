@@ -3,24 +3,47 @@ import { readContextFile } from "@/lib/context";
 const PERSONA_PATH = "personas/ap-persona.md";
 const BENCHMARK_INTERPRETER_SKILL_PATH = "skills/benchmark-interpreter/SKILL.md";
 const TEMPLATE_FILLER_SKILL_PATH = "skills/template-filler/SKILL.md";
+const FILE_READER_SKILL_PATH = "skills/file-reader/SKILL.md";
+const PROCUREMENT_SKILL_PATH = "skills/procurement-review/SKILL.md";
+const GRN_SKILL_PATH = "skills/grn-review/SKILL.md";
+const INVOICE_SKILL_PATH = "skills/invoice-processing-review/SKILL.md";
+const PAYMENT_SKILL_PATH = "skills/payment-run-review/SKILL.md";
+const VENDOR_MASTER_SKILL_PATH = "skills/vendor-master-review/SKILL.md";
 const BENCHMARK_DATA_PATH = "sample-data/ap-benchmark-data.csv";
 const REFERENCE_REPORT_PATH = "sample-data/ap-reference-diagnostic-report.md";
+const REVIEWER_AGENT_PATH = "agents/reviewer.md";
 
 /**
- * A different job from the interview prompt: not asking questions, writing
- * a finished document. Assembled fresh from context/ on every request, from
- * the same three skill/persona/reference-data pattern used everywhere else
- * in this app, never cached.
+ * Assembled fresh from context/ on every request, combining the AP persona,
+ * benchmark-interpreter, template-filler, file-reader, and the five sub-process
+ * review skills alongside the authoritative benchmark data and reference report.
  */
 export async function buildReportSystemPrompt(clientName?: string): Promise<string> {
-  const [persona, benchmarkInterpreterSkill, templateFillerSkill, benchmarkData, referenceReport] =
-    await Promise.all([
-      readContextFile(PERSONA_PATH),
-      readContextFile(BENCHMARK_INTERPRETER_SKILL_PATH),
-      readContextFile(TEMPLATE_FILLER_SKILL_PATH),
-      readContextFile(BENCHMARK_DATA_PATH),
-      readContextFile(REFERENCE_REPORT_PATH),
-    ]);
+  const [
+    persona,
+    benchmarkInterpreterSkill,
+    templateFillerSkill,
+    fileReaderSkill,
+    procurementSkill,
+    grnSkill,
+    invoiceSkill,
+    paymentSkill,
+    vendorMasterSkill,
+    benchmarkData,
+    referenceReport,
+  ] = await Promise.all([
+    readContextFile(PERSONA_PATH),
+    readContextFile(BENCHMARK_INTERPRETER_SKILL_PATH),
+    readContextFile(TEMPLATE_FILLER_SKILL_PATH),
+    readContextFile(FILE_READER_SKILL_PATH),
+    readContextFile(PROCUREMENT_SKILL_PATH),
+    readContextFile(GRN_SKILL_PATH),
+    readContextFile(INVOICE_SKILL_PATH),
+    readContextFile(PAYMENT_SKILL_PATH),
+    readContextFile(VENDOR_MASTER_SKILL_PATH),
+    readContextFile(BENCHMARK_DATA_PATH),
+    readContextFile(REFERENCE_REPORT_PATH),
+  ]);
 
   const clientNameBlock = clientName
     ? `\n\n# The client's name\n\n"${clientName}" was collected on an intake screen before this session started, not said live in the interview. Use it as the report's client name. Do not infer industry, sector, size, or operating model from it.`
@@ -29,6 +52,34 @@ export async function buildReportSystemPrompt(clientName?: string): Promise<stri
   return `You are an EY Finance Transformation consultant with deep Accounts Payable domain expertise. Your domain knowledge, in full, is the persona file below.
 
 ${persona}
+
+---
+
+# How you read client files and extracts
+
+${fileReaderSkill}
+
+---
+
+# Sub-process review disciplines
+
+${procurementSkill}
+
+---
+
+${grnSkill}
+
+---
+
+${invoiceSkill}
+
+---
+
+${paymentSkill}
+
+---
+
+${vendorMasterSkill}
 
 ---
 
@@ -80,3 +131,8 @@ Produce the diagnostic report with these six sections, in exactly this order, an
 
 Write the whole report in clean, well-structured markdown: proper headings for each of the six sections, real markdown tables (not ASCII art) for the As-is Observations, Maturity Assessment, and Benchmarking sections, and bullet lists for Opportunities by Lever. This output is rendered directly as markdown, so formatting has to be correct, not just readable as plain text.`;
 }
+
+export async function buildReviewSystemPrompt(): Promise<string> {
+  return readContextFile(REVIEWER_AGENT_PATH);
+}
+

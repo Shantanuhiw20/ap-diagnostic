@@ -1,33 +1,8 @@
 import { loadChecklist, type Checklist } from "./checklist";
+import { FIXED_INTERVIEW_FIELD_IDS } from "@/lib/ap-diagnostic-data";
 import type { ChecklistRow } from "@/lib/csv";
 
-/**
- * The fixed interview set: five must-ask fields and four high-value fields,
- * always asked in this order. Chosen because the report's causal chain and
- * its benchmarking table cannot be built without them, not because they are
- * the "first" fields in the checklist file.
- *
- * Order follows the causal chain the reference report argues (low PO
- * coverage -> exceptions -> cycle time -> late payment -> downstream cost
- * and symptoms), which also happens to read as a natural interview arc.
- *
- * Must-ask (blocking, the report cannot be written without these):
- *   ap_03 volume, ap_04 PO coverage, ap_08 exception rate,
- *   ap_11 paid on time, ap_19 FTE count
- * High-value (needed for the benchmarking table's breadth):
- *   ap_09 cycle time, ap_10 DPO, ap_14 discount capture, ap_17 vendor queries
- */
-export const FIXED_INTERVIEW_FIELD_IDS = [
-  "ap_03",
-  "ap_04",
-  "ap_08",
-  "ap_09",
-  "ap_11",
-  "ap_10",
-  "ap_14",
-  "ap_17",
-  "ap_19",
-] as const;
+export { FIXED_INTERVIEW_FIELD_IDS };
 
 export interface FixedQuestion {
   fieldId: string;

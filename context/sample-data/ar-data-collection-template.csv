@@ -1,8 +1,0 @@
-field_id,category,question,why_it_matters,data_type
-ar_01,Volume,How many customer invoices do you issue in a typical month?,Sets scale of the receivables operation,number
-ar_02,Metric,What is your average Days Sales Outstanding (DSO)?,Core AR health metric,number (days)
-ar_03,Metric,What percentage of receivables are over 90 days past due?,Direct proxy for collections risk,percentage
-ar_04,Process,How many collection reminder steps happen before an account is escalated?,Shows collections process maturity,number
-ar_05,Technology,What system do you use for invoicing and collections tracking?,Determines automation opportunity,text
-ar_06,Metric,What percentage of disputes/deductions get resolved within 30 days?,Signals dispute-handling efficiency,percentage
-ar_07,Pain point,"What is the single biggest bottleneck in collections today, in your own words?","Open-ended, captures tacit knowledge",text

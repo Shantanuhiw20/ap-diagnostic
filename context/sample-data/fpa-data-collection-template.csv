@@ -1,8 +1,0 @@
-field_id,category,question,why_it_matters,data_type
-fpa_01,Process,"How often do you refresh your rolling forecast (monthly, quarterly, ad hoc)?",Signals planning maturity,text
-fpa_02,Metric,What is your typical forecast accuracy (actual vs. forecast variance) over the last 4 quarters?,Core FP&A health metric,percentage
-fpa_03,Process,"How many business days does a full budget cycle take, start to finish?",Cycle time for planning,number (days)
-fpa_04,Technology,"What tool do you use for planning today (Excel, Anaplan, Adaptive, other)?",Determines automation opportunity,text
-fpa_05,Metric,What percentage of your planning time is spent on data gathering versus analysis?,Proxy for how much of the job is manual assembly,percentage
-fpa_06,Team,"How many FTEs support FP&A today, and how many business units do they cover?",Baseline for capacity conversation,text
-fpa_07,Pain point,"What is the single biggest bottleneck in your planning process today, in your own words?","Open-ended, captures tacit knowledge",text

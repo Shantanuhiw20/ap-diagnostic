@@ -5,15 +5,19 @@
   --foreground: #171717;
 
   /* EY palette. Yellow is an accent only, never a body-text background or
-     text colour on white, see .claude/skills/frontend-design/SKILL.md */
+     text colour on white, see context/skills/frontend-design/SKILL.md
+     and context/sample-data/design.md */
   --ey-yellow: #ffe600;
   --ey-black: #000000;
   --ey-white: #ffffff;
+  --ey-navy: #0d1b2e;
   --ey-charcoal: #2e2e38;
+  --ey-teal: #0f8b8d;
   --ey-grey-700: #4a4a55;
   --ey-grey-400: #8e8e97;
   --ey-grey-200: #d6d6da;
   --ey-grey-100: #f6f6f4;
+  --ey-grey-light: #f2f2f2;
 }
 
 @theme inline {
@@ -25,17 +29,24 @@
   --color-ey-yellow: var(--ey-yellow);
   --color-ey-black: var(--ey-black);
   --color-ey-white: var(--ey-white);
+  --color-ey-navy: var(--ey-navy);
   --color-ey-charcoal: var(--ey-charcoal);
+  --color-ey-teal: var(--ey-teal);
   --color-ey-grey-700: var(--ey-grey-700);
   --color-ey-grey-400: var(--ey-grey-400);
   --color-ey-grey-200: var(--ey-grey-200);
   --color-ey-grey-100: var(--ey-grey-100);
+  --color-ey-grey-light: var(--ey-grey-light);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-body), "Segoe UI", sans-serif;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Motion: one deliberate moment per element, sharp and short, not

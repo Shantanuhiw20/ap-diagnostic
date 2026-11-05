@@ -1,13 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // context/ is populated locally by `npm run sync-context` (personas, skills,
-  // agents, sample-data) and isn't traced automatically since nothing in the
-  // route code imports it by static path. Force it into the deployed trace
-  // so it travels with the app.
+  // Ensure context/ (personas, skills, agents, sample-data) is traced and
+  // bundled into Vercel serverless functions for /api/chat, /api/report,
+  // and /api/review.
   outputFileTracingIncludes: {
     "/*": ["./context/**/*"],
   },
 };
 
 export default nextConfig;
+
